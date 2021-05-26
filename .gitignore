@@ -1,0 +1,6 @@
+*.csv
+*.tsv
+*.pickle
+*.rds
+*.rda
+*.Rdata
