@@ -19,6 +19,7 @@ apply_signature <- function(dataset, signature, genes){
     res2.cd4 <- res.df[res.df$GeneID %in% genes$sigGenes_symbol, c('GeneID', 'log2FoldChange', 'padj')]
     # we keep the genes present on the signature list
     # bulkNormalized$gene_id <- rownames(bulkNormalized)
+    dataset_bck <- dataset
     dataset <- dataset[rownames(dataset) %in% genes$sigGenes_symbol,]
 
     logplusone <- function(x) {log(x + 0.5)}
@@ -80,9 +81,13 @@ apply_signature <- function(dataset, signature, genes){
     metadata$CAR_LOW_SCORE_COD <- car_exp.hl$CAR_High_level_COD
     metadata$CAR_LOW_SCORE_pondered_scaled <- car_exp.hl$V1
     metadata$Overall_score <- (metadata$CAR_HIGH_SCORE_LEVEL_HL>0)*(metadata$CAR_HIGH_SCORE_LEVEL_HL +3) + metadata$CAR_LOW_SCORE_LEVEL_HL
-    metadata$guilleScore <- ifelse(all_signatures$High_pondered >0, 'High', 'Low')
-    ##### my score
+    metadata$High_pondered_bin <- ifelse(all_signatures$High_pondered >0, 'High', 'Low')
+    metadata$High_pondered <- all_signatures$High_pondered
 
+    all_signatures_ <- all_signatures[, c('High_pondered', 'Patient_ID'), drop=FALSE]
+    CAR_gene_expr <- as.data.frame(t(dataset_bck[grepl('CD19SCFV', rownames(dataset_bck)), ]))
+    CAR_gene_expr$Patient_ID <- rownames(CAR_gene_expr)
+    all_signatures_ <- merge(all_signatures_ , CAR_gene_expr, by='Patient_ID')
     return(metadata)
 }
 
@@ -114,9 +119,12 @@ for (folder in folders){
     tables_percent_CD8 <- cbind(tables_percent_CD8, as.matrix(table(results_CD8[[folder]]$Overall_score))/ sum(as.matrix(table(results_CD8[[folder]]$Overall_score)))* 100)
     ifelse(results_CD8[[folder]]$Overall_score >3, 'High', 'Low')
     pb$tick()
-    car_high_score_cd4[[folder]] <- results_CD4[[folder]]$guilleScore
-    car_high_score_cd8[[folder]] <- results_CD8[[folder]]$guilleScore
+    car_high_score_cd4[[folder]] <- results_CD4[[folder]]$High_pondered_bin
+    car_high_score_cd8[[folder]] <- results_CD8[[folder]]$High_pondered_bin
 }
+
+
+
 
 car_high_score_df_cd4 <- as.data.frame(t(as.data.frame(lapply(car_high_score_cd4, function(x) as.numeric(prop.table(table(x))*100)))))
 colnames(car_high_score_df_cd4) <- c('High', 'Low')

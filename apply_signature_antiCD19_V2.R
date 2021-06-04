@@ -1,0 +1,202 @@
+library(ggplot2)
+##########################
+##########################
+##########################
+
+data_path = '/home/sevastopol/data/gserranos/CART_HL/Data/antiCD19/GSE151511_RAW/'
+folders <- list.files(data_path, pattern = '^ac[0-9]{2}')
+
+
+CD4_signature_genes <-read.delim(file="./Data/signature/BatchK_CD4_SIGGenes_BASAL_BOTH_LowvsHigh.tsv",sep="\t",header=T)
+CD8_signature_genes <-read.delim(file="./Data/signature/BatchK_CD8_SIGGenes_BASAL_BOTH_LowvsHigh.tsv",sep="\t",header=T)
+
+CD4_signature<-read.delim(file="./Data/signature/BatchK_CD4_output_BASAL_BOTH_LowvsHigh.tsv",sep="\t",header=T)
+CD8_signature<-read.delim(file="./Data/signature/BatchK_CD8_output_BASAL_BOTH_LowvsHigh.tsv",sep="\t",header=T)
+
+
+apply_signature <- function(dataset, signature, genes, sample_name){
+    results <- data.frame(cell_id = colnames(dataset))
+    signature <- as.data.frame(signature)
+    signature <- signature[signature$GeneID %in% genes$sigGenes_symbol, c('GeneID', 'log2FoldChange', 'padj')]
+    # we keep the genes present on the signature list
+    # bulkNormalized$gene_id <- rownames(bulkNormalized)
+    CAR_gene_expr <- as.data.frame(t(dataset[grepl('CD19SCFV', rownames(dataset)), ]))
+    CAR_gene_expr$cell_id <- rownames(CAR_gene_expr)
+    dataset <- dataset[rownames(dataset) %in% genes$sigGenes_symbol,]
+
+    logplusone <- function(x) {log(x + 0.5)}
+    l <- as.data.frame(apply(dataset, 2, logplusone))
+    # head(l[,1:5])
+    zscore <- as.data.frame(scale(l))
+
+    # dim(zscore)
+    # head(zscore[,1:5])
+    zscore$GeneID <- rownames(zscore)
+    ann_markers <- merge(zscore, signature, by='GeneID')
+    DT.high <- ann_markers[, !colnames(ann_markers) %in% c('GeneID', 'log2FoldChange', 'padj')] * ann_markers[, 'log2FoldChange']
+    DT.low <- ann_markers[, !colnames(ann_markers) %in% c('GeneID', 'log2FoldChange', 'padj')] * -ann_markers[, 'log2FoldChange']
+    DT.high <- cbind(DT.high, ann_markers[, c('GeneID', 'log2FoldChange', 'padj')])
+    DT.low  <- cbind(DT.low , ann_markers[, c('GeneID', 'log2FoldChange', 'padj')])
+    DT.cd4.high <- setNames(as.data.frame(colSums(DT.high[, !colnames(DT.high) %in% c('GeneID', 'log2FoldChange', 'padj')], )), c('High_pondered'))
+    DT.cd4.high$Patient_ID <- rownames(DT.cd4.high)
+    DT.cd4.low  <- setNames(as.data.frame(colSums(DT.low[, !colnames(DT.high) %in% c('GeneID', 'log2FoldChange', 'padj')], )), c('Low_pondered'))
+    DT.cd4.low$Patient_ID <- rownames(DT.cd4.low)
+
+
+    all_signatures <- merge(DT.cd4.high, DT.cd4.low, by='Patient_ID')
+    # stoped at line 202....
+    set.seed(123)
+    pdf('./Plots/Hist_signatures.pdf')
+    cowplot::plot_grid(
+        ggplot2::ggplot(all_signatures , ggplot2::aes(x=High_pondered)) + ggplot2::geom_histogram (bins=50, fill = '#7F7F7F', alpha = 0.6)+ geom_vline(xintercept = 0, 
+                color = "red") + theme_classic(), 
+        ggplot2::ggplot(all_signatures , ggplot2::aes(x=Low_pondered)) + ggplot2::geom_histogram (bins=50, fill = '#DBBE78', alpha = 0.6)+ geom_vline(xintercept = 0, 
+                color = "red", size=1)+ theme_classic(), 
+        ggplot2::ggplot(all_signatures , ggplot2::aes(x=scale(High_pondered))) + ggplot2::geom_histogram (bins=50, fill = '#7F7F7F', alpha = 0.6)+ geom_vline(xintercept = 0, 
+                color = "red", size=1)+ theme_classic(), 
+        ggplot2::ggplot(all_signatures , ggplot2::aes(x=scale(Low_pondered))) + ggplot2::geom_histogram (bins=50, fill = '#DBBE78', alpha = 0.6)+ geom_vline(xintercept = 0, 
+                color = "red", size=1)+ theme_classic(), 
+    ncol=2)
+    dev.off()
+
+    #highness
+    car_exp <- scale(all_signatures$High_pondered)
+    # car_exp <- all_signatures$High_pondered
+    car_p33 <- quantile(car_exp[car_exp>0], probs = c(0.25))
+    car_p66 <- quantile(car_exp[car_exp>0], probs = c(0.75))
+    # quantile(car_exp[car_exp>0], probs = c(0.99))
+    car_exp.hl <- as.data.frame(car_exp)
+    car_exp.hl$CAR_level <- ifelse((car_exp>0 & car_exp<=car_p33), 1 , 
+                            ifelse((car_exp>car_p33 & car_exp<=car_p66) ,2, ifelse( (car_exp > car_p66), 3, 0 )))
+    car_exp.hl$CAR_High_level_COD <- ifelse((car_exp>0 & car_exp<=car_p33), 'Low' , 
+                            ifelse((car_exp>car_p33 & car_exp<=car_p66) ,'Med_to_high', ifelse( (car_exp > car_p66), 'High', 'Negative' )))
+
+    car_exp.hl$Patient_ID <- all_signatures$Patient_ID
+    results$CAR_HIGH_SCORE_LEVEL_HL <- car_exp.hl$CAR_level
+    results$CAR_HIGH_SCORE_COD <- car_exp.hl$CAR_High_level_COD
+    results$CAR_HIGH_SCORE_pondered_scaled <- car_exp.hl$V1
+    # lowness
+    car_exp <- scale(all_signatures$Low_pondered)
+    car_p33 <- quantile(car_exp[car_exp>0], probs = c(0.25))
+    car_p66 <- quantile(car_exp[car_exp>0], probs = c(0.75))
+    # quantile(car_exp[car_exp>0], probs = c(0.99))
+    car_exp.hl <- as.data.frame(car_exp)
+    car_exp.hl$CAR_level <- ifelse((car_exp>0 & car_exp<=car_p33), 1 , 
+                            ifelse((car_exp>car_p33 & car_exp<=car_p66) ,2, ifelse( (car_exp > car_p66), 3, 0 )))
+    car_exp.hl$CAR_High_level_COD <- ifelse((car_exp>0 & car_exp<=car_p33), 'Low' , 
+                            ifelse((car_exp>car_p33 & car_exp<=car_p66) ,'Med_to_high', ifelse( (car_exp > car_p66), 'High', 'Negative' )))
+
+    car_exp.hl$Patient_ID <- all_signatures$Patient_ID
+
+
+
+ 
+
+    results$CAR_LOW_SCORE_LEVEL_HL <- car_exp.hl$CAR_level
+    results$CAR_LOW_SCORE_COD <- car_exp.hl$CAR_High_level_COD
+    results$CAR_LOW_SCORE_pondered_scaled <- car_exp.hl$V1
+
+    results$Overall_score <- (results$CAR_HIGH_SCORE_LEVEL_HL>0)*(results$CAR_HIGH_SCORE_LEVEL_HL +3) + results$CAR_LOW_SCORE_LEVEL_HL
+    results$High_pondered_bin <- ifelse(all_signatures$High_pondered >0, 'High', 'Low')
+    results$High_pondered <- all_signatures$High_pondered
+
+    results <- merge(results, CAR_gene_expr, by = 'cell_id')
+    results$Sample <- sample_name
+    return(results)
+}
+
+
+metadata <- data.frame(Sample = sort(folders))
+metadata$OS <- 'NR'
+metadata$OS[metadata$Sample %in% c('ac14','ac07','ac08','ac05','ac16','ac10','ac01','ac09','ac12')] <- 'CR'
+pb <- progress::progress_bar$new(total=length(folders))
+for (folder in folders){
+    data_cd4 <- readRDS(paste0(data_path, folder, '/', folder, '_normalized_only_car_cd4.rds'))
+    data_cd8 <- readRDS(paste0(data_path, folder, '/', folder, '_normalized_car_cd8.rds'))
+
+    if (folder == folders[1]){
+        results_CD4 <- apply_signature(data_cd4, CD4_signature, CD4_signature_genes, folder)
+        results_CD8 <- apply_signature(data_cd8, CD8_signature, CD8_signature_genes, folder)
+
+    }else{
+        results_CD4 <- rbind(results_CD4, apply_signature(data_cd4, CD4_signature, CD4_signature_genes, folder))
+        results_CD8 <- rbind(results_CD8, apply_signature(data_cd8, CD8_signature, CD8_signature_genes, folder))
+    }
+    pb$tick()
+
+}
+
+results_CD4 <- merge(results_CD4, metadata, by='Sample') 
+results_CD8 <- merge(results_CD8, metadata, by='Sample') 
+
+pdf('./Plots/Signature_HIGH_TEST.pdf')
+plotter_cd4 <- results_CD4[, c('High_pondered_bin', 'Sample')]
+plotter_cd4 <- t(table(plotter_cd4$High_pondered_bin, plotter_cd4$Sample))
+plotter_cd4 <- as.data.frame(t(apply(plotter_cd4 , 1, FUN=function(x) x/sum(x)*100)))
+plotter_cd4$Sample <- rownames(plotter_cd4)
+plotter_cd4 <- merge(plotter_cd4, metadata, by='Sample')
+plotter_cd4 <- reshape2::melt(plotter_cd4)
+plotter_cd4$variable <- factor(plotter_cd4$variable, levels=c('Low', 'High'))
+
+plotter_cd8 <- results_CD8[, c('High_pondered_bin', 'Sample')]
+plotter_cd8 <- t(table(plotter_cd8$High_pondered_bin, plotter_cd8$Sample))
+plotter_cd8 <- as.data.frame(t(apply(plotter_cd8 , 1, FUN=function(x) x/sum(x)*100)))
+plotter_cd8$Sample <- rownames(plotter_cd8)
+plotter_cd8 <- merge(plotter_cd8, metadata, by='Sample')
+plotter_cd8 <- reshape2::melt(plotter_cd8)
+plotter_cd8$variable <- factor(plotter_cd8$variable, levels=c('Low', 'High'))
+cowplot::plot_grid(
+    ggplot(plotter_cd4, aes(x=variable, y=value, fill=variable)) + geom_boxplot() + scale_fill_manual(values = c('#DBBE78', '#7F7F7F'))+ scale_alpha_manual(values=c(0.8)) + theme_classic() + facet_wrap(~OS) + ggtitle('CD4') + theme(legend.position='none'), 
+    ggplot(plotter_cd8, aes(x=variable, y=value, fill=variable)) + geom_boxplot() + scale_fill_manual(values = c('#DBBE78', '#7F7F7F'))+ scale_alpha_manual(values=c(0.8)) + theme_classic() + facet_wrap(~OS) + ggtitle('CD8') + theme(legend.position='none'), 
+ncol=2)
+dev.off()
+
+
+
+pdf('./Plots/Signature_SC_OnlyCar_CD4.pdf')
+    plotter_cd4 <- table(results_CD4$Sample, results_CD4$Overall_score)
+    plotter_cd4 <- as.data.frame(t(apply(plotter_cd4 , 1, FUN=function(x) x/sum(x)*100)))
+    plotter_cd4$Sample <- rownames(plotter_cd4)
+    plotter_cd4 <- merge(plotter_cd4, metadata, by = 'Sample')
+    ggplot(reshape2::melt(plotter_cd4), aes(x=variable, y=value, group=Sample, color = OS)) + geom_line() + theme_bw() + facet_wrap(~Sample) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + ggtitle('Percentage of cells per CAR density level')
+    plotter <- plotter_cd4
+    plotter$Low  <- rowSums(plotter_cd4[, c('1', '2', '3')])
+    plotter$High <- rowSums(plotter_cd4[, c('4', '5', '6')])
+    plotter <- reshape2::melt(plotter[, c('Sample', 'OS', 'Low', 'High')])
+    plotter$variable <-  factor(plotter$variable, levels=c('Low', 'High'))
+    cowplot::plot_grid(
+        ggplot(reshape2::melt(plotter_cd4), aes(x=variable, y=value, group=Sample, color = OS)) + geom_line() + theme_bw() + facet_wrap(~OS) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + theme(legend.position='none'),
+        ggplot(plotter, aes(x=variable, y=value, fill=variable)) + geom_boxplot() + scale_fill_manual(values = c('#DBBE78', '#7F7F7F'))+ scale_alpha_manual(values=c(0.8)) + theme_classic() + facet_wrap(~OS)+ theme(legend.position='none') , 
+    ncol=2)
+
+dev.off()
+
+
+pdf('./Plots/Signature_SC_OnlyCar_CD8.pdf')
+    plotter_cd8 <- table(results_CD8$Sample, results_CD8$Overall_score)
+    plotter_cd8 <- as.data.frame(t(apply(plotter_cd8 , 1, FUN=function(x) x/sum(x)*100)))
+    plotter_cd8$Sample <- rownames(plotter_cd8)
+    plotter_cd8 <- merge(plotter_cd8, metadata, by = 'Sample')
+    ggplot(reshape2::melt(plotter_cd8), aes(x=variable, y=value, group=Sample, color = OS)) + geom_line() + theme_bw() + facet_wrap(~Sample) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + ggtitle('Percentage of cells per CAR density level')
+    plotter <- plotter_cd8
+    plotter$Low  <- rowSums(plotter_cd8[, c('1', '2', '3')])
+    plotter$High <- rowSums(plotter_cd8[, c('4', '5', '6')])
+    plotter <- reshape2::melt(plotter[, c('Sample', 'OS', 'Low', 'High')])
+    plotter$variable <-  factor(plotter$variable, levels=c('Low', 'High'))
+    cowplot::plot_grid(
+        ggplot(reshape2::melt(plotter_cd8), aes(x=variable, y=value, group=Sample, color = OS)) + geom_line() + theme_bw() + facet_wrap(~OS) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + theme(legend.position='none'),
+        ggplot(plotter, aes(x=variable, y=value, fill=variable)) + geom_boxplot() + scale_fill_manual(values = c('#DBBE78', '#7F7F7F'))+ scale_alpha_manual(values=c(0.8)) + theme_classic() + facet_wrap(~OS)+ theme(legend.position='none') , 
+    ncol=2)
+
+dev.off()
+
+
+
+car_exp_level <- setNames(rbind(results_CD4[, c('Sample', 'cell_id', 'High_pondered', 'Overall_score', 'FMC63-CD19SCFV', 'OS')], 
+                       results_CD8[, c('Sample', 'cell_id', 'High_pondered', 'Overall_score','FMC63-CD19SCFV', 'OS')] ), 
+                       c('Sample', 'cell_id', 'High_pondered', 'Overall_score','CAR_Exp', 'OS'))
+
+pdf('./Plots/Correlation_CarVsSig.pdf')
+ggplot(car_exp_level, aes(x = High_pondered, y = CAR_Exp, group=Sample, color=OS)) + geom_line() + facet_wrap(~Sample) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + theme_bw()
+ggplot(car_exp_level, aes(x = Overall_score, y = CAR_Exp, group=Sample, color=OS)) + geom_point() + facet_wrap(~Sample) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + theme_bw()
+dev.off()
