@@ -14,13 +14,13 @@ CD4_signature<-read.delim(file="./Data/signature/BatchK_CD4_output_BASAL_BOTH_Lo
 CD8_signature<-read.delim(file="./Data/signature/BatchK_CD8_output_BASAL_BOTH_LowvsHigh.tsv",sep="\t",header=T)
 
 
-apply_signature <- function(dataset, signature, genes, sample_name){
+apply_signature <- function(dataset, signature, genes, sample_name, cargene = 'CD19SCFV'){
     results <- data.frame(cell_id = colnames(dataset))
     signature <- as.data.frame(signature)
     signature <- signature[signature$GeneID %in% genes$sigGenes_symbol, c('GeneID', 'log2FoldChange', 'padj')]
     # we keep the genes present on the signature list
     # bulkNormalized$gene_id <- rownames(bulkNormalized)
-    CAR_gene_expr <- as.data.frame(t(dataset[grepl('CD19SCFV', rownames(dataset)), ]))
+    CAR_gene_expr <- as.data.frame(t(dataset[grepl(cargene, rownames(dataset)), ]))
     CAR_gene_expr$cell_id <- rownames(CAR_gene_expr)
     dataset <- dataset[rownames(dataset) %in% genes$sigGenes_symbol,]
 
@@ -191,12 +191,65 @@ pdf('./Plots/Signature_SC_OnlyCar_CD8.pdf')
 dev.off()
 
 
+results_CD4$CD <- 'CD4'
+results_CD8$CD <- 'CD8'
+car_exp_level <- setNames(rbind(results_CD4[, c('Sample', 'cell_id', 'High_pondered', 'Overall_score', 'FMC63-CD19SCFV', 'OS', 'CD')], 
+                       results_CD8[, c('Sample', 'cell_id', 'High_pondered', 'Overall_score','FMC63-CD19SCFV', 'OS', 'CD')] ), 
+                       c('Sample', 'cell_id', 'High_pondered', 'Overall_score','CAR_Exp', 'OS', 'CD'))
 
-car_exp_level <- setNames(rbind(results_CD4[, c('Sample', 'cell_id', 'High_pondered', 'Overall_score', 'FMC63-CD19SCFV', 'OS')], 
-                       results_CD8[, c('Sample', 'cell_id', 'High_pondered', 'Overall_score','FMC63-CD19SCFV', 'OS')] ), 
-                       c('Sample', 'cell_id', 'High_pondered', 'Overall_score','CAR_Exp', 'OS'))
+car_exp_level$Sample_OS <- paste0(car_exp_level$Sample, '_', car_exp_level$OS)
 
 pdf('./Plots/Correlation_CarVsSig.pdf')
-ggplot(car_exp_level, aes(x = High_pondered, y = CAR_Exp, group=Sample, color=OS)) + geom_line() + facet_wrap(~Sample) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + theme_bw()
-ggplot(car_exp_level, aes(x = Overall_score, y = CAR_Exp, group=Sample, color=OS)) + geom_point() + facet_wrap(~Sample) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + theme_bw()
+annotation_percentage <- as.data.frame.matrix(table(car_exp_level$Sample_OS, car_exp_level$High_pondered >=0))
+annotation_percentage <- as.data.frame.matrix(t(apply(annotation_percentage, 1, FUN=function(x) x/sum(x)*100)))
+annotation_percentage$Sample_OS <- rownames(annotation_percentage)
+annotation_percentage$Hig_percent <- signif(annotation_percentage[, 'TRUE'], digits=3)
+annotation_percentage$Sample <- 'CD4'
+annotation_percentage$CD <- 'CD4'
+
+ggplot(car_exp_level, aes(x = High_pondered, y = CAR_Exp, group=Sample, color=CD)) + geom_point(size= 0.8, alpha =0.6) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + theme_bw() + geom_vline(xintercept = 0, color = "red") + ggtitle('CD4+CD8')+ facet_wrap(~Sample_OS, nrow=6) + geom_text(x = 100, y = 3.5, aes(label = Hig_percent), data = annotation_percentage)#+ geom_rug(aes(color=CD), outside = TRUE)
+
+ggplot(car_exp_level, aes(x = Overall_score, y = CAR_Exp, group=Sample, color=CD)) + geom_point(size= 0.8, alpha =0.6) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + theme_bw()  + ggtitle('CD4+CD8')+ facet_wrap(~Sample_OS, nrow=6)
+
+ggplot(car_exp_level, aes(x = Overall_score, y = CAR_Exp, group=Sample, color=CD)) + geom_point(size= 0.8, alpha =0.6) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + theme_bw() + ggtitle('CD4+CD8')+ facet_wrap(~Sample_OS, nrow=6)
+dev.off()
+
+
+
+#### Single cell by FP
+
+exprMatrix_cd4<-read.csv(file="./Data/signature/ForGuille_exprMatrix_cd4.csv", row.names = "X")
+exprMatrix_cd8<-read.csv(file="./Data/signature/ForGuille_exprMatrix_cd8.csv", row.names = "X")
+cd4_metadata<- read.csv(file="./Data/signature/ForGuille_metadata_cd4.csv", row.names = "X")
+cd8_metadata <- read.csv(file="./Data/signature/ForGuille_metadata_cd8.csv", row.names = "X")
+
+cd4_metadata$cell_id <- sub('-', '.', cd4_metadata$don_cells)
+cd8_metadata$cell_id <- sub('-', '.', cd8_metadata$don_cells)
+
+
+results_CD4_SC_FP <- apply_signature(exprMatrix_cd4, CD4_signature, CD4_signature_genes, 'CD4', 'CAR-pCCL-BCMA')
+results_CD8_SC_FP <- apply_signature(exprMatrix_cd8, CD8_signature, CD8_signature_genes, 'CD8', 'CAR-pCCL-BCMA')
+
+results_CD4_SC_FP <- merge(cd4_metadata, results_CD4_SC_FP, by='cell_id')
+results_CD8_SC_FP <- merge(cd8_metadata, results_CD8_SC_FP, by='cell_id')
+results_CD4_SC_FP$CD <- 'CD4'
+results_CD8_SC_FP$CD <- 'CD8'
+
+car_exp_level_SC_FP <- setNames(rbind(results_CD4_SC_FP[, c('Sample', 'cell_id', 'High_pondered', 'donor', 'Overall_score', 'CAR-pCCL-BCMA', 'CD')], 
+                       results_CD8_SC_FP[, c('Sample', 'cell_id', 'High_pondered', 'donor','Overall_score','CAR-pCCL-BCMA', 'CD')] ), 
+                       c('Sample', 'cell_id', 'High_pondered', 'donor','Overall_score','CAR_Exp', 'CD'))
+
+
+pdf('./Plots/Correlation_CarVsSig_SCFP.pdf')
+# ggplot(car_exp_level, aes(x = High_pondered, y = CAR_Exp, group=Sample, color=OS)) + geom_point(size= 0.8, alpha =0.6) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + theme_bw() + geom_vline(xintercept = 0, color = "red") + ggtitle('CD4+CD8')+ facet_wrap(~Sample, nrow=6) 
+annotation_percentage <- as.data.frame.matrix(table(car_exp_level_SC_FP$donor, car_exp_level_SC_FP$High_pondered >=0))
+annotation_percentage <- as.data.frame.matrix(t(apply(annotation_percentage, 1, FUN=function(x) x/sum(x)*100)))
+annotation_percentage$donor <- rownames(annotation_percentage)
+annotation_percentage$Hig_percent <- signif(annotation_percentage[, 'TRUE'], digits=3)
+annotation_percentage$Sample <- 'CD4'
+annotation_percentage$CD <- 'CD4'
+ggplot(car_exp_level_SC_FP, aes(x = High_pondered, y = CAR_Exp, group=Sample, color=CD)) + geom_point(size= 0.8, alpha =0.6) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + theme_bw() + geom_vline(xintercept = 0, color = "red") + ggtitle('CD4+CD8')+ facet_wrap(~donor, nrow=6) + geom_text(x = 150, y = 5.5, aes(label = Hig_percent), data = annotation_percentage) #+ geom_rug(aes(color=CD), outside = TRUE)
+
+
+ggplot(car_exp_level_SC_FP, aes(x = Overall_score, y = CAR_Exp, group=Sample, color=CD)) + geom_point(size= 0.8, alpha =0.6) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + theme_bw() + ggtitle('CD4+CD8')+ facet_wrap(~donor, nrow=6)
 dev.off()
