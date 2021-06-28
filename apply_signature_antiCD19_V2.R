@@ -10,8 +10,8 @@ folders <- list.files(data_path, pattern = '^ac[0-9]{2}')
 CD4_signature_genes <-read.delim(file="./Data/signature/BatchK_CD4_SIGGenes_BASAL_BOTH_LowvsHigh.tsv",sep="\t",header=T)
 CD8_signature_genes <-read.delim(file="./Data/signature/BatchK_CD8_SIGGenes_BASAL_BOTH_LowvsHigh.tsv",sep="\t",header=T)
 
-CD4_signature<-read.delim(file="./Data/signature/BatchK_CD4_output_BASAL_BOTH_LowvsHigh.tsv",sep="\t",header=T)
-CD8_signature<-read.delim(file="./Data/signature/BatchK_CD8_output_BASAL_BOTH_LowvsHigh.tsv",sep="\t",header=T)
+CD4_signature <- read.delim(file="./Data/signature/BatchK_CD4_output_BASAL_BOTH_LowvsHigh.tsv",sep="\t",header=T)
+CD8_signature <- read.delim(file="./Data/signature/BatchK_CD8_output_BASAL_BOTH_LowvsHigh.tsv",sep="\t",header=T)
 
 
 apply_signature <- function(dataset, signature, genes, sample_name, cargene = 'CD19SCFV'){
@@ -193,8 +193,9 @@ dev.off()
 
 results_CD4$CD <- 'CD4'
 results_CD8$CD <- 'CD8'
-car_exp_level <- setNames(rbind(results_CD4[, c('Sample', 'cell_id', 'High_pondered', 'Overall_score', 'FMC63-CD19SCFV', 'OS', 'CD')], 
-                       results_CD8[, c('Sample', 'cell_id', 'High_pondered', 'Overall_score','FMC63-CD19SCFV', 'OS', 'CD')] ), 
+CAR_NAME <- 'FMC63-CD19SCFV'
+car_exp_level <- setNames(rbind(results_CD4[, c('Sample', 'cell_id', 'High_pondered', 'Overall_score', CAR_NAME, 'OS', 'CD')], 
+                       results_CD8[, c('Sample', 'cell_id', 'High_pondered', 'Overall_score',CAR_NAME, 'OS', 'CD')] ), 
                        c('Sample', 'cell_id', 'High_pondered', 'Overall_score','CAR_Exp', 'OS', 'CD'))
 
 car_exp_level$Sample_OS <- paste0(car_exp_level$Sample, '_', car_exp_level$OS)
@@ -218,9 +219,9 @@ dev.off()
 
 #### Single cell by FP
 
-exprMatrix_cd4<-read.csv(file="./Data/signature/ForGuille_exprMatrix_cd4.csv", row.names = "X")
-exprMatrix_cd8<-read.csv(file="./Data/signature/ForGuille_exprMatrix_cd8.csv", row.names = "X")
-cd4_metadata<- read.csv(file="./Data/signature/ForGuille_metadata_cd4.csv", row.names = "X")
+exprMatrix_cd4 <-read.csv(file="./Data/signature/ForGuille_exprMatrix_cd4.csv", row.names = "X")
+exprMatrix_cd8 <-read.csv(file="./Data/signature/ForGuille_exprMatrix_cd8.csv", row.names = "X")
+cd4_metadata <- read.csv(file="./Data/signature/ForGuille_metadata_cd4.csv", row.names = "X")
 cd8_metadata <- read.csv(file="./Data/signature/ForGuille_metadata_cd8.csv", row.names = "X")
 
 cd4_metadata$cell_id <- sub('-', '.', cd4_metadata$don_cells)
@@ -253,3 +254,30 @@ ggplot(car_exp_level_SC_FP, aes(x = High_pondered, y = CAR_Exp, group=Sample, co
 
 ggplot(car_exp_level_SC_FP, aes(x = Overall_score, y = CAR_Exp, group=Sample, color=CD)) + geom_point(size= 0.8, alpha =0.6) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + theme_bw() + ggtitle('CD4+CD8')+ facet_wrap(~donor, nrow=6)
 dev.off()
+
+
+
+
+######
+library(Seurat)
+car_exp_level_SC_FP$cell_id <- sub('\\.', '-', car_exp_level_SC_FP$cell_id)
+rds_test <- readRDS('/home/sevastopol/data/mcallejac/JuanRo_SimiC/data/CART_HIGHLOW/Scores_Improved_Apr/HighLowCod_ctrl_integrated_seurat_cd4cd8_clusters.rds')
+coords <- as.data.frame(rds_test@reductions$umap@cell.embeddings)
+coords$cell_id <- rownames(coords)
+
+clusters <- setNames(as.data.frame(rds_test$ClusterNames_0.8_by_JR), 'Cluster')
+clusters$cell_id <- rownames(clusters)
+coords <- merge(coords, car_exp_level_SC_FP[, c('cell_id', 'High_pondered', 'CAR_Exp', 'CD')], by='cell_id')
+coords$BinScore <- ifelse(coords$High_pondered > 0, 'High', 'Low')
+
+coords <- merge(coords, clusters, by='cell_id')
+coords$Cluster <- stringr::str_remove(coords$Cluster, '^C[\\d]{1,2}\\.')
+
+pdf('./Plots/Umap_Score_CarExp.pdf')
+ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= High_pondered, shape = CD)) + geom_point(alpha=0.6) + viridis::scale_color_viridis()  + theme_bw()
+ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= CAR_Exp, shape = CD)) + geom_point(alpha=0.6) + viridis::scale_color_viridis()  + theme_bw()
+ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= BinScore, shape = CD)) + geom_point(alpha=0.6) + scale_color_manual(values=c('#73C272', '#3F5588'))  + theme_bw()
+ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= Cluster)) + geom_point(alpha=0.8) + hues::scale_color_iwanthue()  + theme_bw() + facet_wrap(~BinScore) + theme(legend.position='bottom')
+
+dev.off()
+
