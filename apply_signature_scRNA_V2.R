@@ -1,4 +1,5 @@
 library(ggplot2)
+library(Seurat)
 ##########################
 ##########################
 ##########################
@@ -216,8 +217,9 @@ ggplot(car_exp_level, aes(x = Overall_score, y = CAR_Exp, group=Sample, color=CD
 dev.off()
 
 
-
-#### Single cell by FP
+########################
+#### Single cell by CIMA
+########################
 
 exprMatrix_cd4 <-read.csv(file="./Data/signature/ForGuille_exprMatrix_cd4.csv", row.names = "X")
 exprMatrix_cd8 <-read.csv(file="./Data/signature/ForGuille_exprMatrix_cd8.csv", row.names = "X")
@@ -259,7 +261,7 @@ dev.off()
 
 
 ######
-library(Seurat)
+
 car_exp_level_SC_FP$cell_id <- sub('\\.', '-', car_exp_level_SC_FP$cell_id)
 rds_test <- readRDS('/home/sevastopol/data/mcallejac/JuanRo_SimiC/data/CART_HIGHLOW/Scores_Improved_Apr/HighLowCod_ctrl_integrated_seurat_cd4cd8_clusters.rds')
 coords <- as.data.frame(rds_test@reductions$umap@cell.embeddings)
@@ -273,11 +275,14 @@ coords$BinScore <- ifelse(coords$High_pondered > 0, 'High', 'Low')
 coords <- merge(coords, clusters, by='cell_id')
 coords$Cluster <- stringr::str_remove(coords$Cluster, '^C[\\d]{1,2}\\.')
 
-pdf('./Plots/Umap_Score_CarExp.pdf')
-ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= High_pondered, shape = CD)) + geom_point(alpha=0.6) + viridis::scale_color_viridis()  + theme_bw()
-ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= CAR_Exp, shape = CD)) + geom_point(alpha=0.6) + viridis::scale_color_viridis()  + theme_bw()
-ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= BinScore, shape = CD)) + geom_point(alpha=0.6) + scale_color_manual(values=c('#73C272', '#3F5588'))  + theme_bw()
-ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= Cluster)) + geom_point(alpha=0.8) + hues::scale_color_iwanthue()  + theme_bw() + facet_wrap(~BinScore) + theme(legend.position='bottom')
+pdf('./Plots/Umap_Score_CarExp.pdf', width=8)
+cowplot::plot_grid(
+ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= High_pondered, shape = CD)) + geom_point(alpha=0.6) + viridis::scale_color_viridis()  + theme_bw() + labs(subtitle = 'High-low score') + theme(legend.position='bottom') +guides(shape=FALSE) ,
+ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= CAR_Exp, shape = CD)) + geom_point(alpha=0.6) + viridis::scale_color_viridis()  + theme_bw() + labs(subtitle = 'CAR expression')+ theme(legend.position='bottom', legend.key.width= unit(4, 'mm')) ,
+ncol=2)
+
+ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= BinScore, shape = CD)) + geom_point(alpha=0.6) + scale_color_manual(values=c('#73C272', '#3F5588'))  + theme_bw()+ labs(subtitle = 'High-low distribution')
+ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= Cluster)) + geom_point(alpha=0.8) + hues::scale_color_iwanthue()  + theme_bw() + facet_wrap(~BinScore) + theme(legend.position='bottom')+ labs(subtitle = 'High-low distribution per cluster')
 
 dev.off()
 
