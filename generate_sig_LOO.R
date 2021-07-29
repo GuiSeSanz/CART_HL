@@ -247,7 +247,8 @@ for (path in paths){
   
 }
 
-
+saveRDS(results_CD8, './Data/signature/Results_LOO_CD8.rds')
+saveRDS(results_CD4, './Data/signature/Results_LOO_CD4.rds')
 
 rownames(results_CD8) <- ifelse(grepl('^Control', results_CD8$Sample), 'Control', paste0('Leaved_out_',results_CD8$Sample))
 results_CD8 <- results_CD8[, !colnames(results_CD8) %in% c('Sample', 'type')]

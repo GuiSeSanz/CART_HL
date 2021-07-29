@@ -200,10 +200,13 @@ saveRDS(hemato_data_raw, "/home/sevastopol/data/gserranos/CART_HL/SimiC/Data/CAR
 cell_populations <- c("Low", "High")
 cell_group_idx <- as.data.frame(cell_scores$BinScore )
 rownames(cell_group_idx) <- cell_scores$cell_id
+assignment_2_post <- setNames(cell_group_idx[rownames(cell_group_idx) %in% cells_2_keep,, drop=FALSE], 'Score')
 cell_group_idx <- as.character(cell_group_idx[rownames(cell_group_idx) %in% cells_2_keep,])
 assignment <- as.character(seq(0,length(cell_populations)-1))
 names(assignment) <- cell_populations
 cluster_assignments <- assignment[cell_group_idx]
+assignment_2_post$BinScore <- ifelse(assignment_2_post$Score  == 'Low', 0,1)
+saveRDS(assignment_2_post, './Data/Assignments_high_low.rds')
 
 ### RUN MAGIC #### #MAGIC works on a cells x genes matrix, seurat gives a genes x cells matrix
 hemato_data_raw<-Rmagic::library.size.normalize(t(hemato_data_raw))

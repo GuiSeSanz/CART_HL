@@ -273,7 +273,7 @@ coords <- merge(coords, car_exp_level_SC_FP[, c('cell_id', 'High_pondered', 'CAR
 coords$BinScore <- ifelse(coords$High_pondered > 0, 'High', 'Low')
 
 coords <- merge(coords, clusters, by='cell_id')
-coords$Cluster <- stringr::str_remove(coords$Cluster, '^C[\\d]{1,2}\\.')
+coords$Cluster <- stringr::str_remove(coords$Cluster, '^C?[\\d]{1,2}\\.')
 
 pdf('./Plots/Umap_Score_CarExp.pdf', width=8)
 cowplot::plot_grid(
@@ -286,3 +286,57 @@ ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= Cluster)) + geom_point(alpha=0.8) 
 
 dev.off()
 
+tmp <- setNames(as.data.frame(rds_test$donor), 'Donor')
+tmp$cell_id <- rownames(tmp)
+coords <- merge(coords, tmp, by='cell_id')
+
+stats <- table(coords$Cluster, coords$BinScore)
+stats_percent <- t(apply(stats, 1, FUN=function(x) round(x/sum(x) *100, digits =3)))
+colnames(stats_percent) <- paste0(colnames(stats_percent), '_percent')
+stats <- cbind(stats, stats_percent)
+pdf('./Plots/HighLow_per_cluster.pdf')
+print(gridExtra::grid.table(stats))
+dev.off()
+
+
+normData <- as.data.frame(t(rds_test@assays$SCT@scale.data))
+get_markers <- function(data, genelist){
+    tmp <- data[, genelist]
+    tmp$cell_id <- rownames(tmp)
+    return(tmp)
+}
+
+range01 <- function(x){(x-min(x))/(max(x)-min(x))}
+
+get_umap <- function(data, gene){
+    gene_expr <- normData[, gene, drop=FALSE]
+    gene_expr$cell_id <- rownames(gene_expr)
+    coords_markers <- merge(coords, gene_expr, by='cell_id')
+    plot <- ggplot(coords_markers, aes(x=UMAP_1, y=UMAP_2, color= get(gene))) + 
+    geom_point(alpha=0.3, size = 0.8) + 
+    scale_color_gradient(low="grey90", high ="blue", name = 'Expression') + theme_void() + 
+    theme(legend.position='right', plot.title = element_text(hjust = 0.5), , legend.key.height = unit(5, 'mm'), legend.key.width = unit(2, 'mm')) + 
+    ggtitle(gene)
+    return(plot)
+}
+
+
+genelist <- c('CAR-pCCL-BCMA', 'CD4', 'CD8A','MYC', 'CD28', 'IL7R')
+genelist %in% colnames(normData)
+
+pdf('./Plots/Umap_Markers.pdf')
+# legend <- cowplot::get_legend(get_umap(coords_markers, 'CD4')+ theme(legend.position='right'))
+cowplot::plot_grid(
+    get_umap(coords, 'CAR-pCCL-BCMA'),
+    get_umap(coords, 'CD4'),
+    get_umap(coords, 'CD8A'),
+    get_umap(coords, 'MYC'),
+    get_umap(coords, 'CD28'),
+    get_umap(coords, 'IL7R'),
+    ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= Cluster)) + geom_point(alpha=0.6, size = 0.5) + 
+    hues::scale_color_iwanthue() + theme_void() + theme(legend.position='none', plot.title = element_text(hjust = 0.5)) + ggtitle('Populations'),
+    # legend,
+    ncol=2
+)
+
+dev.off()

@@ -1,89 +1,15 @@
-[22;0t]0;IPython: CART_HL/SimiCCROSS VALIDATION
-Done loading, shape of X =  (17000, 3300)
------- Begin the regression part...
-df in regression shape =  (17000, 3300)
-df test =  (3400, 3300)
-test data assignment set: {0, 1}
-df train =  (13600, 3300)
-train data assignment set: {0, 1}
--------
--------
-.... generating train set
-cell type  0
-	TF size: (11960, 301)
-	Target size: (11960, 3000)
-cell type  1
-	TF size: (1640, 301)
-	Target size: (1640, 3000)
--------
-.... generating test set
-cell type  0
-	TF size: (2969, 301)
-	Target size: (2969, 3000)
-cell type  1
-	TF size: (431, 301)
-	Target size: (431, 3000)
--------
-start cross validation!!!
-lambda1 = 0.1, lamda2 = 0.1, done
-----> adjusetd R2 = 0.3306
-////////
-lambda1 = 0.1, lamda2 = 0.01, done
-----> adjusetd R2 = 0.3293
-////////
-lambda1 = 0.1, lamda2 = 0.001, done
-----> adjusetd R2 = 0.3292
-////////
-lambda1 = 0.1, lamda2 = 0.0001, done
-----> adjusetd R2 = 0.3294
-////////
-lambda1 = 0.1, lamda2 = 1e-05, done
-----> adjusetd R2 = 0.3293
-////////
-lambda1 = 0.01, lamda2 = 0.1, done
-----> adjusetd R2 = 0.7052
-////////
-lambda1 = 0.01, lamda2 = 0.01, done
-----> adjusetd R2 = 0.7040
-////////
-lambda1 = 0.01, lamda2 = 0.001, done
-----> adjusetd R2 = 0.7037
-////////
-lambda1 = 0.01, lamda2 = 0.0001, done
-----> adjusetd R2 = 0.7036
-////////
-lambda1 = 0.01, lamda2 = 1e-05, done
-----> adjusetd R2 = 0.7036
-////////
-lambda1 = 0.001, lamda2 = 0.1, done
-----> adjusetd R2 = 0.6511
-////////
-lambda1 = 0.001, lamda2 = 0.01, done
-----> adjusetd R2 = 0.6578
-////////
 [22;0t]0;IPython: CART_HL/SimiC
 
 SET LAMBDA1 AND LAMBDA2
 
 
-Done loading, shape of X =  (17000, 3300)
------- Begin the regression part...
-df in regression shape =  (17000, 3300)
-df test =  (3400, 3300)
-test data assignment set: {0, 1}
-df train =  (13600, 3300)
-train data assignment set: {0, 1}
--------
--------
-.... generating train set
-cell type  0
-	TF size: (11934, 301)
-	Target size: (11934, 3000)
-cell type  1
-	TF size: (1666, 301)
-	Target size: (1666, 3000)
--------
-.... generating test set
-cell type  0
-	TF size: (2995, 301)
-	Target size: (2995, 3000)
+simic uses 0.0h0.0min
+calculating the AUC
+label 0 done in 4.1e+04s
+/home/sevastopol/anaconda3/lib/python3.6/site-packages/simiclasso-0.3.1-py3.6.egg/simiclasso/weighted_AUC_mat.py:85: RuntimeWarning: invalid value encountered in double_scalars
+  AUC_score = np.sum(running_sum) / (sum_of_weight * len_of_genes)
+label 1 done in 3.6e+04s
+simic uses 0.0h0.0min
+auc uses 21.0h1266.0min
+total uses 21.0h1266.0min
+Yay!

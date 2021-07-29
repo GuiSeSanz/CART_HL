@@ -44,33 +44,34 @@ if cross_val:
 	lambda2='CrossVal'
 	p2saved_file = '/home/sevastopol/data/gserranos/CART_HL/SimiC/Data/CART_HighLow_L1'+str(lambda1)+'_L2'+str(lambda2)+'_Ws_filtered_BIC.pickle' #Weigths
 	p2AUC =        '/home/sevastopol/data/gserranos/CART_HL/SimiC/Data/CART_HighLow_L1'+str(lambda1)+'_L2'+str(lambda2)+'_AUCs_filtered_BIC.pickle' #Auc
-
+	#
 	simicLASSO_op(p2df, p2assignment, similarity, p2tf, p2saved_file,  k_cluster, num_TFs, num_target_genes, 
 			max_rcd_iter = max_rcd_iter, df_with_label = df_with_label,
 			cross_val=cross_val)
-
 else:
 	for lambda2 in lambda2_list:
-		p2saved_file = '/home/sevastopol/data/gserranos/CART_HL/SimiC/Data/CART_HighLow_L1'+str(lambda1)+'_L2'+str(lambda2)+'_Ws_filtered_BIC.pickle' #Weigths
+		p2saved_file = '/home/sevastopol/data/gserranos/CART_HL/SimiC/Data/CART_HighLow_L1'+str(lambda1)+'_L2'+str(lambda2)+'.pickle' #Weigths
 		p2AUC =        '/home/sevastopol/data/gserranos/CART_HL/SimiC/Data/CART_HighLow_L1'+str(lambda1)+'_L2'+str(lambda2)+'_AUCs_filtered_BIC.pickle' #Auc
-
+		#
 		ts_simic = time.time()
-
+		#
 		# CROSS VALIDATION 
 		# SET LAMBDA1 AND LAMBDA2
-
+		#
 		print('\n\nSET LAMBDA1 AND LAMBDA2\n\n')
-		simicLASSO_op(p2df, p2assignment, similarity, p2tf, p2saved_file,  k_cluster, num_TFs, num_target_genes, 
-				max_rcd_iter = max_rcd_iter, df_with_label = df_with_label,
-				lambda1=lambda1, lambda2 = lambda2)
+		# simicLASSO_op(p2df, p2assignment, similarity, p2tf, p2saved_file,  k_cluster, num_TFs, num_target_genes, 
+		# 		max_rcd_iter = max_rcd_iter, df_with_label = df_with_label,
+		# 		lambda1=lambda1, lambda2 = lambda2)
 		te_simic = time.time()
 		t_simic = te_simic - ts_simic 
 
 		time_pass = lambda x: '{}h{}min'.format(x // 3600, x// 60 - x//3600)
 		print('simic uses {}'.format(time_pass(t_simic)))
-		#  p2saved_file_filtered :: output of the filter weights function
 		ts_auc = time.time()
-		# main_fn(p2df, p2saved_file_filtered, p2AUC, percent_of_target = percent_of_target)
+		#  p2saved_file_filtered :: output of the filter weights function
+		p2saved_file_filtered = '/home/sevastopol/data/gserranos/CART_HL/SimiC/Data/CART_HighLow_L10.01_L20.1_Ws_filtered_BIC.pickle'
+		print('calculating the AUC')
+		main_fn(p2df, p2saved_file_filtered, p2AUC, percent_of_target = percent_of_target)
 		te_auc = time.time()
 
 		t_auc = te_auc - ts_auc

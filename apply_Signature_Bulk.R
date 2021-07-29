@@ -129,6 +129,44 @@ dev.off()
 
 
 
+
+pdf('./Plots/Signature_HighScore.pdf', 5, 7)
+test_CD4$bin_overallScore <- ifelse(test_CD4$High_pondered > 0, 'High', 'Low')
+test_CD8$bin_overallScore <- ifelse(test_CD8$High_pondered > 0, 'High', 'Low')
+test_CD4$bin_overallScore <- factor(test_CD4$bin_overallScore, levels=c('Low', 'High'))
+test_CD8$bin_overallScore <- factor(test_CD8$bin_overallScore, levels=c('Low', 'High'))
+
+epivalcd4 <- round(Epi::twoby2(table(test_CD4$new_OS, test_CD4$bin_overallScore))$p.value[[2]], 3)
+epivalcd8 <- round(Epi::twoby2(table(test_CD8$new_OS, test_CD8$bin_overallScore))$p.value[[2]], 3)
+
+cowplot::plot_grid(
+plot_HM(table(test_CD4$new_OS, test_CD4$bin_overallScore), 'CD4 signature'),
+plot_HM(table(test_CD8$new_OS, test_CD8$bin_overallScore), 'CD8 signature'),
+plot_HM(round(prop.table(as.table(table(test_CD4$new_OS, test_CD4$bin_overallScore)), 1)*100, 3), paste0('CD4 signature\nRelative Risk Pval:', epivalcd4)), 
+plot_HM(round(prop.table(as.table(table(test_CD8$new_OS, test_CD8$bin_overallScore)), 1)*100, 3), paste0('CD8 signature\nRelative Risk Pval:', epivalcd8)), 
+# plot_HM(table(test_CD4$new_OS, test_CD4$bin_overallScore), paste0('CD4 signature\nRelative Risk Pval:', epivalcd4)),
+# plot_HM(table(test_CD8$new_OS, test_CD8$bin_overallScore), paste0('CD8 signature\nRelative Risk Pval:', epivalcd8)), 
+ncol =2
+)
+
+dev.off()
+
+# + viridis::scale_fill_viridis(discrete = TRUE, alpha=0.6)
+
+pdf('./Plots/Signature_HighScore_boxplot.pdf')
+test_CD4_tmp <- test_CD4
+test_CD8_tmp <- test_CD8
+est_CD4_tmp$CD <-  'CD4'
+test_CD8_tmp$CD <-  'CD8'
+tmp <- rbind(test_CD4_tmp, test_CD8_tmp)
+
+ggplot2::ggplot(tmp, ggplot2::aes(x = new_OS, y = High_pondered, fill=new_OS)) + ggplot2::geom_boxplot() + ggplot2::geom_point(size = 0.6, alpha = 0.4) + ggplot2::theme_classic() + ggplot2::scale_fill_manual(values=c(c('#DBBE78', '#7F7F7F'))) + ggplot2::theme(legend.position='none')+ ggplot2::labs(title='Wilcoxon signed-rank test over NR and CR', x='Overall Survival', y='CAR density score') + ggplot2::facet_wrap(~CD) + 
+ggsignif::geom_signif(comparisons = list(c("CR", "NR")), map_signif_level = TRUE)
+
+dev.off()
+
+
+
 # BULK CIMA
 
 
