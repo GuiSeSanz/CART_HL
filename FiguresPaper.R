@@ -1,5 +1,105 @@
+
+library(rlang)
 library(ggplot2)
 library(Seurat)
+
+get_colorStats <- function(data, num_breaks){
+    mat <- as.matrix(data)
+    mat_breaks <- seq(min(mat), max(mat), length.out = 10)
+    dat <- data.frame(values=unlist(data))
+    dat_colors <- data.frame(
+        xmin = mat_breaks[1:(length(mat_breaks)-1)],
+        xmax = mat_breaks[2:length(mat_breaks)],
+        ymin = 0,
+        ymax = max(density(as.matrix(mat), bw = "SJ")$y),
+        fill = rev(viridis::inferno(length(mat_breaks) - 1)),
+        stringsAsFactors = FALSE
+    )
+    dat2 <- as.data.frame(table(cut(
+    mat, mat_breaks
+    )))
+    dat2$fill <- viridis::inferno(nrow(dat2))
+
+    quantile_breaks <- function(xs, n = 10) {
+        breaks <- quantile(xs, probs = seq(0, 1, length.out = n))
+        breaks[!duplicated(breaks)]
+    }
+    mat_breaks_q <- quantile_breaks(mat, n = num_breaks)
+    dat2_q <- as.data.frame(table(cut(
+    mat, mat_breaks_q
+    )))
+    dat2_q$fill <- viridis::inferno(nrow(dat2_q))
+    dat_colors_q <- data.frame(
+        xmin = mat_breaks_q[1:(length(mat_breaks_q)-1)],
+        xmax = mat_breaks_q[2:length(mat_breaks_q)],
+        ymin = 0,
+        ymax = max(density(mat, bw = "SJ")$y),
+        fill = rev(viridis::inferno(length(mat_breaks_q) - 1)),
+        stringsAsFactors = FALSE
+    )
+
+    pdf('./Plots/ColorStats.pdf')
+    print(cowplot::plot_grid(
+        ggplot() + geom_rect(
+            data = dat_colors,
+            mapping = aes(
+            xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = fill
+            ))
+         + geom_density(
+            data = dat,
+            mapping = aes(values),
+            bw = "SJ", color = "cyan"
+        ) +
+        theme_classic() +
+        scale_fill_manual(values = dat_colors$fill) +
+        theme(legend.position = "none") +
+        labs(title = "Uniform breaks")
+        ,
+        ggplot() +
+        geom_bar(
+            data = dat2,
+            mapping = aes(x = Var1, weight = Freq, fill = Var1),
+            color = "black", size = 0.1
+        ) +
+        coord_flip() + theme_classic() +
+        scale_fill_manual(values = dat2$fill) +
+        theme(legend.position = "none") +
+        labs(y = "data points", x = "breaks",
+            title = "Number of data points per color"),
+    ncol=1))
+
+    print(cowplot::plot_grid(
+
+        ggplot() +
+        geom_rect(
+            data = dat_colors_q,
+            mapping = aes(
+            xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax, fill = fill
+            )) +
+        geom_density(
+            data = dat,
+            mapping = aes(values),
+            bw = "SJ", color = "cyan"
+        ) + theme_classic() +
+        scale_fill_manual(values = dat_colors_q$fill) +
+        theme(legend.position = "none") +
+        labs(title = "Quantile breaks")
+        ,
+        ggplot() +
+        geom_bar(
+            data = dat2_q,
+            mapping = aes(x = Var1, weight = Freq, fill = Var1),
+            color = "black", size = 0.1
+        ) +
+        coord_flip() + theme_classic() +
+        scale_fill_manual(values = dat2_q$fill) +
+        theme(legend.position = "none") +
+        labs(y = "data points", x = "breaks",
+            title = "Number of data points per color"),
+        nrow=2))
+        dev.off()
+    return(mat_breaks_q)
+}
 
 get_annotation <- function(data){
     annotation <- data.frame(FACS_Level= stringr::str_extract(colnames(data), '(?<=_)[a-zA-Z]+(?=$|_)') )
@@ -102,8 +202,11 @@ get_markers <- function(data, genelist){
 
 range01 <- function(x){(x-min(x))/(max(x)-min(x))}
 
-get_umap <- function(data, gene){
+get_umap <- function(data, gene, upplim=NULL ){
     gene_expr <- data[, gene, drop=FALSE]
+    if(!is.null(upplim)){
+        gene_expr[gene_expr>upplim] <- upplim
+    }
     gene_expr$cell_id <- sub('-','.', rownames(gene_expr))
     coords_markers <- merge(coords, gene_expr, by='cell_id')
     plot <- ggplot(coords_markers, aes(x=UMAP_1, y=UMAP_2, color= get(gene))) + 
@@ -116,8 +219,11 @@ get_umap <- function(data, gene){
     return(plot)
 }
 
-get_violin <- function(data, title){
-    tmp <- ggplot(data, aes(x=Cluster, y=Value)) + geom_violin(aes(fill=Cluster)) + hues::scale_fill_iwanthue() + theme_classic() + ggtitle(title) + theme(legend.position='none') + labs(y = 'Value')
+get_violin <- function(data, title, cluster_color = color_list_populations){
+    tmp <- ggplot(data, aes(x=Cluster, y=Value)) + geom_violin(aes(fill=Cluster)) + 
+    theme_classic() + ggtitle(title) + theme(legend.position='none', axis.text=element_text(size=6)) + labs(y = 'Value') +
+    scale_fill_manual(values=cluster_color)
+    # hues::scale_fill_iwanthue() 
     return(tmp)
 }
 
@@ -176,8 +282,11 @@ get_Score_bulk <- function(norm_data, type){
 }
 
 
-get_correlation <- function(data, name, y_just = 35000){
-    tmp <- ggplot(data, aes(x=get(name), y=FACS_value)) + geom_point(aes(color=NamedScore)) + scale_color_manual(values = c('#30A3CC', '#FCB357')) + theme_bw() + theme(legend.position='bottom') + geom_smooth(method=lm, se=FALSE, color="black", size = 0.5) + ggpubr::stat_regline_equation(label.y = y_just, aes(label=..rr.label..))
+get_correlation <- function(data, name, y_just = log10(1e5)){ # y_just = 3500
+    tmp <- ggplot(data, aes(x=get(name), y=FACS_value)) + geom_point(aes(color=NamedScore)) + scale_y_continuous(trans = 'log10')+ 
+    scale_color_manual(values = c('#30A3CC', '#FCB357')) + theme_bw() + theme(legend.position='bottom') + 
+    geom_smooth(method=lm, se=FALSE, color="black", size = 0.5) + 
+    ggpubr::stat_regline_equation(label.y = y_just, aes(label=..rr.label..))
     return(tmp)
 }
 
@@ -199,7 +308,7 @@ check_genes <- function(gene_list, df){
     not_found_genes <- gene_list[which(!gene_list %in% colnames(normData))]
     if(length(not_found_genes)!=0){
         message(paste0('Left behind ', length(not_found_genes), ': ', paste0(not_found_genes, collapse='; ')))
-        gene_list <- gene_list[which(sign_genes %in% colnames(normData))]
+        gene_list <- gene_list[which(gene_list %in% colnames(normData))]
     }else{
         gene_list <- gene_list
     }
@@ -211,14 +320,14 @@ get_umap_signature <- function(df, title){
     plot <- ggplot(df, aes(x=UMAP_1, y=UMAP_2, color= Signature)) + 
     geom_point(alpha=0.9, size = 0.8) + 
     viridis::scale_color_viridis()+
-    # scale_color_gradient(low="grey90", high ="blue", name = 'Expression') + 
-    guides(color = guide_colourbar(barwidth = 0.5, barheight = 2, label = TRUE)) + 
+    # scale_color_gradientn(low="grey90", high ="blue", name = 'Expression') + 
+    # guides(color = guide_colourbar(barwidth = 0.5, barheight = 2, label = TRUE)) + 
     theme_void() + ggtitle(title)+
     theme(legend.position='none', plot.title = element_text(hjust = 0.5, size = 8))#, legend.key.height = unit(2, 'mm'), legend.key.width = unit(1, 'mm')) + 
     return(plot)
 }
 
-get_expression_signature <- function(gene_list_name, df, coords){
+get_expression_signature <- function(gene_list_name, df, coords, upplim=NULL){
     gene_list <- as.character(read.table(paste0(signatures_path, '/', gene_list_name))$V1)
     gene_list <- check_genes(gene_list, df)
     tmp <- df[, colnames(df) %in% gene_list]
@@ -226,6 +335,10 @@ get_expression_signature <- function(gene_list_name, df, coords){
     tmp$cell_id <- sub('-', '\\.',rownames(tmp))
     tmp <- merge(tmp, coords, by='cell_id')
     title <- gsub('_', ' ', stringr::str_remove(gene_list_name, '\\.txt$'))
+    if(!is.null(upplim)){
+        upp_outliers <- which(tmp$Signature>upplim) 
+        tmp[upp_outliers , 'Signature'] <- upplim
+    }
     plot <- get_umap_signature(tmp, title)
     return(plot)
 }
@@ -268,22 +381,25 @@ car_exp_level_SC_FP <- setNames(
 
 
 # Read the RDS to get the UMAP coords
+rds_unfiltered <- readRDS('/home/sevastopol/data/mcallejac/JuanRo_SimiC/data/CART_UFILTER/integrated_seurat_clusters_afterpipeline.rds')
 rds_test <- readRDS('/home/sevastopol/data/mcallejac/JuanRo_SimiC/data/CART_HIGHLOW/Scores_Improved_Apr/HighLowCod_ctrl_integrated_seurat_cd4cd8_clusters.rds')
 coords <- as.data.frame(rds_test@reductions$umap@cell.embeddings)
 coords$cell_id <- sub('-', '.',rownames(coords))
 clusters <- setNames(as.data.frame(rds_test$ClusterNames_0.8_by_JR), 'Cluster')
 clusters$cell_id <- sub('-', '.',rownames(clusters))
-
+levels(clusters$Cluster)[levels(clusters$Cluster)=="21.CD4 Cytotoxic"] <- "C21.CD4 Cytotoxic"
 coords <- merge(coords, car_exp_level_SC_FP[, c('cell_id', 'High_pondered', 'CAR_Exp', 'CD')], by='cell_id')
 coords$BinScore <- ifelse(coords$High_pondered > 0, 'High', 'Low')
 coords <- merge(coords, clusters, by='cell_id')
-coords$Cluster <- stringr::str_remove(coords$Cluster, '^C?[\\d]{1,2}\\.')
+# coords$Cluster <- stringr::str_remove(coords$Cluster, '^C?[\\d]{1,2}\\.')
 
 normData <- as.data.frame(t(rds_test@assays$RNA@scale.data))
 
-
 color_list_populations <- c('#A55E34', '#C6B2D3', '#D0342B', '#8E221A', '#2E6B34', '#BBDE93', '#AECDE1', '#3C77AF', '#ED9E9B', '#DA913D', '#821851', '#643F95', '#DBBE78', '#7F7F7F', '#000000')
+names(color_list_populations) <- levels(rds_test$ClusterNames_0.8_by_JR)
 
+# color_all_clusters <- c('#A55E34', '#C6B2D3', '#D0342B', '#8E221A', '#2E6B34', '#BBDE93', '#AECDE1', '#3C77AF', '#ED9E9B', '#DA913D', '#821851', '#643F95', '#DBBE78', '#7F7F7F', '#000000')
+# names(color_all_clusters) <- 
 
 Idents(rds_test) <- rds_test$seurat_clusters
 all_genes <- rownames(rds_test)
@@ -293,7 +409,12 @@ rds_test <-  FindVariableFeatures(rds_test, selection.method = "vst", nfeatures 
 Idents(rds_test) <- rds_test$seurat_clusters
 rds_test$seurat_clusters <- factor(rds_test$seurat_clusters, levels=sort(unique(rds_test$seurat_clusters)))
 
-markers <- FindAllMarkers(rds_test, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+if (file.exists('./Data/Markers_cluster_scRNA_HL.rds')){
+    markers <- readRDS('./Data/Markers_cluster_scRNA_HL.rds')
+}else{
+    markers <- FindAllMarkers(rds_test, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+    saveRDS(markers, './Data/Markers_cluster_scRNA_HL.rds')
+}
 
 marker_list <- list()
 for (clust in unique(markers$cluster)){
@@ -312,27 +433,26 @@ all_markers_top20 <- markers %>% group_by(cluster) %>% top_n(n=10, wt=avg_logFC)
 htmap <- DoHeatmap(rds_test, group.by='seurat_clusters', features=all_markers_top20$gene, angle = 0, group.colors = hues::iwanthue(length(levels(all_markers_top20$cluster))), size = 3, combine = TRUE) + NoLegend() + theme(axis.text.y = element_text(size = 3))
 
 
-c('CD4', 'CD8A', 'SELL', 'CCR7', 'TCF7', 'GZMA', 'GNLY', 'NKG7', 'HLA-DR','IL2RA','TIGIT','LAG3') %in% colnames(normData)
 pdf('./Plots/Figure3.pdf')
     # legend <- cowplot::get_legend(get_umap(coords_markers, 'CD4')+ theme(legend.position='right'))
     cowplot::plot_grid(
         cowplot::plot_grid(
-        ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= Cluster)) + geom_point(alpha=0.6, size = 0.5) + scale_color_manual(values=color_list_populations) + theme_void() + theme(legend.position='right', plot.title = element_text(hjust = 0.5)) + ggtitle('Populations') + guides(color = guide_legend(override.aes = list(size=3, alpha = 1))),
+        ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= Cluster)) + geom_point(alpha=0.6, size = 0.5) + scale_color_manual(values=color_list_populations) + theme_void() + 
+        theme(legend.position='right', plot.title = element_text(hjust = 0.5)) + ggtitle('Populations') + 
+        guides(color = guide_legend(override.aes = list(size=3, alpha = 1, font=4))),
         cowplot::plot_grid(
             get_umap(normData, 'CD4'),
-            get_umap(normData, 'CD8A'),
-            get_umap(normData, 'SELL'),
-            get_umap(normData, 'CCR7'),
             get_umap(normData, 'TCF7'),
-            get_umap(normData, 'GZMA'),
-            get_umap(normData, 'GNLY'),
-            get_umap(normData, 'NKG7'),
             get_umap(normData, 'HLA-DRA'),
+            get_umap(normData, 'GZMA'),
+            get_umap(normData, 'LAG3', 5),
+            get_umap(normData, 'CD8A'),
+            get_umap(normData, 'CCR7'),
             get_umap(normData, 'IL2RA'),
-            get_umap(normData, 'TIGIT'),
-            get_umap(normData, 'LAG3'),
+            get_umap(normData, 'PRF1'),
+            get_umap(normData, 'TIGIT', 5),
             # legend,
-            ncol=4),
+            nrow=2),
         nrow=2),
 
         cowplot::plot_grid(htmap, ncol=1),
@@ -340,33 +460,50 @@ pdf('./Plots/Figure3.pdf')
     )
 dev.off()
 
+""
+
 
 pdf('./Plots/FigureS5.pdf')
-    clusters_tmp  <- setNames(as.data.frame(rds_test$seurat_clusters) , 'Cluster')
+    coords_unfiltered <- as.data.frame(rds_unfiltered@reductions$umap@cell.embeddings)
+    coords_unfiltered$cell_id <- sub('-', '.',rownames(coords_unfiltered))
+    coords_unfiltered$Cluster <- rds_unfiltered$integrated_snn_res.0.8
+    clusters_tmp  <- setNames(as.data.frame(rds_unfiltered$seurat_clusters) , 'Cluster')
     clusters_tmp$cell_id <- rownames(clusters_tmp)
-    g2mScore  <- setNames(as.data.frame(rds_test$G2M.Score) , 'Value')
+    # Set the colors, maintining the colors for the conserved clusters
+    color_list_all <- c('#A55E34', '#C6B2D3', '#D0342B', '#8E221A', '#2E6B34', '#BBDE93', '#AECDE1', '#3C77AF', '#ED9E9B', '#DA913D', '#821851', '#643F95', '#DBBE78', '#7F7F7F', '#000000')
+    names(color_list_all) <- stringr::str_extract(levels(rds_test$ClusterNames_0.8_by_JR), 'C?[0-9]{1,2}(?=\\.)')
+    names(color_list_all)[15] <- 'C21'
+    new_colors_names <- setdiff(paste0('C', seq(0,length(unique(coords_unfiltered$Cluster)))),names(color_list_all))
+    new_colors <- hues::iwanthue(length(new_colors_names))
+    names(new_colors) <- new_colors_names
+    color_list_all_stripped <- c(color_list_all, new_colors)
+    color_list_all_stripped <- color_list_all_stripped[order(stringr::str_extract(names(color_list_all_stripped),'C?[0-9]{1,2}(?=\\.)'))]
+    names(color_list_all_stripped) <- stringr::str_extract(names(color_list_all_stripped), '[0-9]{1,2}')
+    color_list_all_stripped <-  color_list_all_stripped[names(color_list_all_stripped)[order(as.numeric(names(color_list_all_stripped)))]]
+    # end of colors
+    g2mScore  <- setNames(as.data.frame(rds_unfiltered$G2M.Score) , 'Value')
     g2mScore <- merge(g2mScore, clusters_tmp, by.x=0, by.y='cell_id')
-    sScore    <- setNames(as.data.frame(rds_test$S.Score) , 'Value')
+    sScore    <- setNames(as.data.frame(rds_unfiltered$S.Score) , 'Value')
     sScore <- merge(sScore, clusters_tmp, by.x=0, by.y='cell_id')
-    mitoRatio <- setNames(as.data.frame(rds_test$mitoRatio) , 'Value')
+    mitoRatio <- setNames(as.data.frame(rds_unfiltered$mitoRatio) , 'Value')
     mitoRatio <- merge(mitoRatio, clusters_tmp, by.x=0, by.y='cell_id')
-    g2mScore  <- get_violin(g2mScore, 'G2M phase')
-    sScore    <- get_violin(sScore, 'S phase')
-    mitoRatio <- get_violin(mitoRatio, 'Ratio of mitochondrial genes')
-    contribution <- merge(clusters_tmp, setNames(as.data.frame(rds_test$donor) , 'Donor'), by.x='cell_id', by.y=0)
+    g2mScore  <- get_violin(g2mScore, 'G2M phase', cluster_color = color_list_all_stripped)
+    sScore    <- get_violin(sScore, 'S phase', cluster_color = color_list_all_stripped)
+    mitoRatio <- get_violin(mitoRatio, 'Ratio of mitochondrial genes', cluster_color = color_list_all_stripped)
+    contribution <- merge(clusters_tmp, setNames(as.data.frame(rds_unfiltered$donor) , 'Donor'), by.x='cell_id', by.y=0)
     contribution2 <- setNames(as.data.frame(prop.table(table(contribution[contribution$Donor == 'd10', 'Cluster']))*100), c('Cluster', 'd10'))
     contribution2 <- merge(contribution2, setNames(as.data.frame(prop.table(table(contribution[contribution$Donor == 'd14', 'Cluster']))*100), c('Cluster', 'd14')), by='Cluster')
     contribution2 <-merge(contribution2,  setNames(as.data.frame(prop.table(table(contribution[contribution$Donor == 'd18', 'Cluster']))*100), c('Cluster', 'd18')), by='Cluster')
     contribution2 <- setNames(reshape2::melt(contribution2), c('Cluster', 'Donor', 'value'))
     contribution <- ggplot(contribution, aes(x= Cluster, fill=Donor))+  geom_bar(position="fill", colour="black") + theme_classic() + labs(title = "Contribution by donor", x= 'Cluster', y = '% of cells') + scale_fill_brewer(palette="RdBu")  #scale_fill_manual(values=c('#585123', '#f2a65a', '#772f1a'))
-    contribution2 <- ggplot(contribution2, aes(x= Cluster, y=value, fill=Donor))+  geom_bar(position="fill", stat='identity', colour="black") + theme_classic() + labs(title = "Contribution by donor", x= 'Cluster', y = '% of cells') + scale_fill_brewer(palette="RdBu")  #scale_fill_manual(values=c('#585123', '#f2a65a', '#772f1a'))
+    contribution2 <- ggplot(contribution2, aes(x= Cluster, y=value, fill=Donor))+  geom_bar(position="fill", stat='identity', colour="black") + theme_classic() + labs(title = "Contribution by donor", x= 'Cluster', y = '% of cells') + scale_fill_brewer(palette="RdBu")+ theme(axis.text=element_text(size=6))  #scale_fill_manual(values=c('#585123', '#f2a65a', '#772f1a'))
 
-    tmp <- setNames(as.data.frame(rds_test$donor), 'Donor')
+    tmp <- setNames(as.data.frame(rds_unfiltered$donor), 'Donor')
     tmp$cell_id <- sub('-', '.', rownames(tmp))
     tmp <- merge(coords, tmp, by='cell_id')
     cowplot::plot_grid(   
         cowplot::plot_grid(
-            ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= Cluster)) + geom_point(alpha=0.9, size = 0.5) + scale_color_manual(values=color_list_populations) + theme_void() + theme(legend.position='right', plot.title = element_text(hjust = 0.5)) + ggtitle('Populations') + guides(color = guide_legend(override.aes = list(size=3, alpha =1))), 
+            ggplot(coords_unfiltered, aes(x=UMAP_1, y=UMAP_2, color= Cluster)) + geom_point(alpha=0.9, size = 0.5) + scale_color_manual(values=color_list_all_stripped) + theme_void() + theme(legend.position='right', plot.title = element_text(hjust = 0.5)) + ggtitle('Populations') + guides(color = guide_legend(override.aes = list(size=3, alpha =1))), 
             # cowplot::plot_grid(
             #     ggplot(tmp, aes(x=UMAP_1, y=UMAP_2, color= Cluster)) + geom_point(alpha=0.9, size = 0.5) + scale_color_manual(values=color_list_populations) + theme_void() + theme(legend.position='none', plot.title = element_text(hjust = 0.5)) + ggtitle('Populations by donor') + guides(color = guide_legend(override.aes = list(size=5)))  + facet_wrap(~Donor)
             # ), 
@@ -379,7 +516,7 @@ pdf('./Plots/FigureS5.pdf')
             sScore,
             mitoRatio,
             nrow=3)
-    , ncol=2, rel_widths=c(3,2))
+    , ncol=2, rel_widths=c(4,3))
         
 dev.off()
 
@@ -396,6 +533,45 @@ High_Low_DE_markers <- FindMarkers(rds_test, ident.1 = "High", ident.2 = "Low")
 High_Low_DE_markers$gene <- rownames(High_Low_DE_markers)
 # WriteXLS::WriteXLS(High_Low_DE_markers, ExcelFileName= './Plots/Markers_scRNA_HL.xlsx', SheetNames='High_Low',  row.names=TRUE, BoldHeaderRow=TRUE)
 htmap <- DoHeatmap(rds_test, group.by='BinScore', features=High_Low_DE_markers$gene, angle = 0, group.colors = c('#30A3CC', '#FCB357'), size = 3, combine = TRUE) + NoLegend() + theme(axis.text.y = element_text(size = 3))
+
+
+rds_test_5Clusters <- rds_test
+Idents(rds_test_5Clusters) <- rds_test_5Clusters$ClusterNames_0.8_by_JR
+cluster_names <- c('C3.CD8 Memory', 'C8.CD8 Cytotoxic', 'C9.CD8 Cytotoxic (late)', 'C6.CD4 Activated', 'C17.CD4 Activated')
+rds_test_5Clusters <- subset(rds_test_5Clusters, idents=cluster_names)
+rds_test_5Clusters$ClusterNames_0.8_by_JR <- factor(rds_test_5Clusters$ClusterNames_0.8_by_JR, level=c(as.character(unique(rds_test_5Clusters$ClusterNames_0.8_by_JR))))
+Idents(rds_test_5Clusters) <- rds_test_5Clusters$BinScore
+High_Low_DE_markers <- FindMarkers(rds_test_5Clusters, ident.1 = "High", ident.2 = "Low")
+High_Low_DE_markers$gene <- rownames(High_Low_DE_markers)
+htmap <- DoHeatmap(rds_test_5Clusters, group.by='ClusterNames_0.8_by_JR', features=High_Low_DE_markers$gene, angle = 0, group.colors = c('#30A3CC', '#FCB357'), size = 3, combine = TRUE) + theme(axis.text.y = element_text(size = 3))
+
+
+test <- as.data.frame(rds_test_5Clusters@assays$RNA@scale.data)
+test <- test[rownames(test) %in% High_Low_DE_markers$gene, ]
+annotation_HL <- as.data.frame(rds_test_5Clusters$BinScore)
+annotation_Cl <- as.data.frame(rds_test_5Clusters$ClusterNames_0.8_by_JR)
+annotation_col <- setNames(merge(annotation_HL, annotation_Cl, by=0), c('cell_id', 'HighLow', 'Cluster'))
+col_order <- annotation_col[with(annotation_col, order(Cluster, HighLow)),]
+rownames(annotation_col) <- annotation_col$cell_id
+annotation_col$cell_id <- NULL
+colors_ann <- list(
+    'HighLow' = c(High = '#30A3CC', Low = '#FCB357'),
+    'Cluster' = c(color_list_populations)
+)
+
+col_gaps <- c()
+for (clust in levels(col_order$Cluster)){
+    col_gaps <- c(col_gaps, which(col_order$Cluster == clust)[1]-1)
+}
+
+
+
+test[test >2.5] <- 2.5
+test[test < -2.5] <- -2.5
+
+htmap <- pheatmap::pheatmap(test[,c(col_order$cell_id) ],scale='none', fontsize=5, angle_col =45, show_rownames=TRUE, show_colnames = FALSE, treeheight_row = 0, treeheight_col = 5, cluster_row =TRUE, cluster_col = FALSE, gaps_col = col_gaps, legend=TRUE, annotation_legend=FALSE, silent = TRUE, color = PurpleAndYellow()[5:45]
+, fontsize_row=2, annotation_col = annotation_col, annotation_colors=colors_ann)
+# , cellwidth=0.03)
 
 signatures_path <- '/home/sevastopol/data/gserranos/CART_HL/Data/signature/OtherSignatures'
 signatures <- list.files(signatures_path)
@@ -421,33 +597,25 @@ if(HighAndLow){
 }
 cowplot::plot_grid(
     cowplot::plot_grid(
-        ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= BinScore, shape = CD)) + geom_point(alpha=0.6) + scale_color_manual(values=c('#30A3CC', '#FCB357'))  + theme_void()+ labs(subtitle = 'High-low distribution') + guides(color = guide_legend(override.aes = list(size=3, alpha = 1))),
+        ggplot(coords, aes(x=UMAP_1, y=UMAP_2, fill= BinScore, shape = CD), color='#5a5a5a') + scale_shape_manual(values=c(21,24))+ geom_point(alpha=0.8) + scale_fill_manual(values=c('#30A3CC', '#FCB357'))  + theme_void()+ labs(subtitle = 'High-low distribution') + guides(fill = guide_legend(override.aes = list(size=3, alpha = 1))) + theme(legend.position='bottom', plot.title = element_text(hjust = 0.5, size = 10)),
         composition,
         cowplot::plot_grid(
-            get_expression_signature("Genes_Activation.txt", normData, coords ),
-            get_expression_signature("Genes_HLA.txt", normData, coords ),
-            get_expression_signature("Genes_Polyfun.txt", normData, coords ),
-            get_expression_signature("Genes_Prolif.txt", normData, coords ),
-            get_expression_signature("Genes_Teff.txt", normData, coords ),
-            get_expression_signature("Genes_Th17.txt", normData, coords ),
-            get_expression_signature("Genes_Th1.txt", normData, coords ),
-            get_expression_signature("Genes_Th2.txt", normData, coords ),
-            get_expression_signature("Genes_Tonic.txt", normData, coords ),
-            ncol=3
+            get_expression_signature("Genes_Activation.txt", normData, coords , 1.2),
+            get_expression_signature("Genes_Teff.txt", normData, coords , 1.2),
+            get_expression_signature("Genes_Th2.txt", normData, coords , 1.2),
+            get_expression_signature("Genes_Tonic.txt", normData, coords , 1.2),
+            ncol=2
         ),
-    ncol=1, rel_heights=c(2,1,2)), 
-htmap,
-ncol=2, rel_widths=c(2,1))
+        cowplot::get_legend(get_expression_signature("Genes_Activation.txt", normData, coords , 1.2)+theme(legend.position='bottom')),
+    ncol=1, rel_heights=c(2,1,2, 0.2)), 
+htmap$gtable,
+ncol=2, rel_widths=c(3,2))
+
 dev.off()
-
-
-
 
 
 normalized_counts_CD4 <- get_normalized_bulk("/home/sevastopol/data/mcallejac/RNA_HighLow_ALL/results/HL_CD4.RData")
 normalized_counts_CD8 <- get_normalized_bulk("/home/sevastopol/data/mcallejac/RNA_HighLow_ALL/results/HL_CD8.RData")
-
-
 
 results_CD8_bulk_CIMA <- get_Score_bulk(normalized_counts_CD4, 'CD4')
 results_CD4_bulk_CIMA <- get_Score_bulk(normalized_counts_CD8, 'CD8')
@@ -489,6 +657,7 @@ FACs <- rbind(FACS_High_melted, FACS_Low_melted)
 
 
 
+
 FACs_Vs_Expr_CD4  <- get_correlation(FACs[FACs$type == 'CD4',], 'CAR_pCCL_BCMA') + labs(x = 'CAR expression')
 FACs_Vs_Expr_CD8  <- get_correlation(FACs[FACs$type == 'CD8',], 'CAR_pCCL_BCMA') + labs(x = 'CAR expression')
 FACs_Vs_Score_CD4 <- get_correlation(FACs[FACs$type == 'CD4',], 'High_pondered') + labs(x = 'Signature Score')
@@ -505,9 +674,7 @@ LOO_CD4 <- get_LOO_table(Results_LOO_CD4)
 LOO_CD8 <- get_LOO_table(Results_LOO_CD8)
 
 
-
-
-pdf('./Plots/FigureS6.pdf')
+pdf('./Plots/FigureS6_log.pdf')
     legend <- cowplot::get_legend(FACs_Vs_Score_CD4+ theme(legend.box.margin = margin(0, 0, 0, 0, 'mm')))
     cowplot::plot_grid(
         cowplot::plot_grid(
@@ -531,3 +698,76 @@ pdf('./Plots/FigureS6.pdf')
     ncol=2, rel_widths=c(2,1))
 
 dev.off()
+
+
+
+# ATAC-seq
+# we need to use the gapped peaks
+library(ChIPseeker)
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+library(EnsDb.Hsapiens.v86)
+edb <- EnsDb.Hsapiens.v86
+annotation_Peaks <- TxDb.Hsapiens.UCSC.hg38.knownGene
+test_path_High <- './Data/High_low/ATACseq/HIGH/CD4/D9_High_CD4_S17_peaks.gappedPeak'
+test_path_Low  <- './Data/High_low/ATACseq/LOW/CD4/D9_High_CD4_S17_peaks.gappedPeak'
+peak_High <- readPeakFile(test_path_High, header=FALSE)
+peak_Low <- readPeakFile(test_path_Low, header=FALSE)
+
+pdf('./Plots/peakLocationGenome.pdf')
+covplot(peak_High, weightCol='V13')
+dev.off()
+
+promoter <- getPromoters(TxDb=annotation_Peaks, upstream=3000, downstream=3000)
+tagMatrix_High <- getTagMatrix(peak_High, windows=promoter)
+
+pdf('./Plots/TSSbindings.pdf')
+tagHeatmap(tagMatrix_High, xlim=c(-3000, 3000), color="red") 
+# peakHeatmap(test_path, TxDb=annotation_Peaks, upstream=3000, downstream=3000, color="red")
+dev.off()
+
+pdf('./Plots/AverageProfile.pdf')
+plotAvgProf(tagMatrix, xlim=c(-3000, 3000), xlab="Genomic Region (5'->3')", ylab = "Read Count Frequency")
+dev.off()
+
+peakAnno <- annotatePeak(peak_High, tssRegion=c(-3000, 3000),
+                         TxDb=annotation_Peaks, annoDb="org.Hs.eg.db")
+
+seqlevelsStyle(edb) <- "UCSC"
+peakAnno.edb <- annotatePeak(peak_High, tssRegion=c(-3000, 3000),
+                             TxDb=edb, annoDb="org.Hs.eg.db")
+
+pdf('./Plots/GenAnnotation.pdf')
+plotAnnoPie(peakAnno)
+dev.off()
+
+# TCR_Clonality
+colors_ann <- list( 'HighLow' = c(High = '#30A3CC', Low = '#FCB357'))
+
+bin_high_low$Patient <- stringr::str_extract(bin_high_low$cell_id, '^[0-9da]+')
+bin_high_low$cell <- stringr::str_extract(bin_high_low$cell_id, '(?<=_)[A-Z0-9\\-]+')
+folders <- list.files('/home/sevastopol/data/gserranos/CART_HL/Data/TCR_clonality/', pattern='day0')
+plotter <- data.frame(Var1 = NULL, Freq= NULL, x = NULL, BinScore= NULL)
+for(folder in folders){
+    print(folder)
+    tcr <- read.table(paste0('/home/sevastopol/data/gserranos/CART_HL/Data/TCR_clonality/',folder,'/outs/filtered_contig_annotations.csv'), sep=',', header=TRUE)
+
+    tcr_filtered <- unique(tcr[, c( 'barcode', 'raw_clonotype_id')])
+    tcr_filtered <- tcr_filtered[tcr_filtered$raw_clonotype_id != '',]
+    n_cells <- nrow(tcr_filtered)
+
+    bin_high_low_tmp <- bin_high_low[bin_high_low$cell %in% tcr_filtered$barcode,]
+    tcr_filtered <- merge(tcr_filtered, bin_high_low_tmp[, c('cell', 'BinScore')], by.x='barcode', by.y='cell')
+    tcr_filtered$raw_clonotype_id <- as.character(tcr_filtered$raw_clonotype_id)
+
+    props <- as.data.frame(table(tcr_filtered$raw_clonotype_id))
+    props$Freq <- (props$Freq/n_cells)*100
+    props$X <- folder
+    props <- merge(props, tcr_filtered[, c('raw_clonotype_id', 'BinScore')], by.x='Var1', by.y='raw_clonotype_id')
+    plotter <- rbind(plotter, props)
+}
+
+
+pdf('./Plots/TCR_Clonality.pdf')
+ggplot(plotter, aes(y=Freq, x=X, color=BinScore)) + geom_point(alpha=0.7) + theme_classic()  + geom_jitter(width = 0.25, height = 0.001) + scale_color_manual(values=c('#30A3CC', '#FCB357'))
+dev.off()
+

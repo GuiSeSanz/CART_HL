@@ -83,6 +83,8 @@ for(phenotype in phenotypes){
     SimiC_weights_df <- rbind(SimiC_weights_df, tmp)
 }
 
+data_2_nets <- SimiC_weights_df[SimiC_weights_df$driver %in% c('NR4A1', 'BATF') & SimiC_weights_df$value != 0, c('.id', 'driver', 'target', 'value')]
+write.table(data_2_nets, './Data/data_2_nets.tsv', sep='\t', row.names=FALSE, quote=FALSE)
 
 pdf(paste0(plot_root_dir ,file_idx,'Simic_TF_weigths.pdf'), onefile = TRUE, width=20)
 TF_2_remove <- c()
