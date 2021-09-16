@@ -1,0 +1,11 @@
+*.csv
+*.tsv
+*.pickle
+*.rds
+*.rda
+*.Rdata
+*.tar
+*.tar.gz
+*.mtx
+Data/
+Plots/

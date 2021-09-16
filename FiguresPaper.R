@@ -343,6 +343,35 @@ get_expression_signature <- function(gene_list_name, df, coords, upplim=NULL){
     return(plot)
 }
 
+get_heatmap_atac <- function(plotter, title, col_order_as_is=TRUE){
+    ann_color = list(Density = c(High = '#30A3CC', Low = '#FCB357'))
+    annotation <- setNames(as.data.frame(ifelse(grepl('High',colnames(plotter)), 'High', 'Low')), 'Density')
+    rownames(annotation) <- colnames(plotter)
+    annotation_row <- setNames(as.data.frame(stringr::str_extract(rownames(plotter), '[\\w]+(?=_)')), 'Gene')
+    rownames(annotation_row) <- rownames(plotter)
+    color_genes <- hues::iwanthue(length(unique(annotation_row$Gene)))
+    names(color_genes) <- unique(annotation_row$Gene)
+    ann_color[['Gene']] <- color_genes
+    if(!col_order_as_is){
+        order_low <- plotter[, grep('Low', colnames(plotter))]
+        order_low <- hclust(dist(t(order_low)))$order
+        order_high <- plotter[, grep('High', colnames(plotter))]
+        order_high <- hclust(dist(t(order_high)))$order
+        order_high <- rev(order_high)
+        names <- c(grep('Low', colnames(plotter), value=TRUE)[order_low], grep('High', colnames(plotter), value=TRUE)[order_high])
+        plotter <- plotter[, names]
+    }
+    phm <- pheatmap::pheatmap(plotter, scale='row', fontsize=5, angle_col =45, show_rownames=FALSE, show_colnames = TRUE, treeheight_row = 5, treeheight_col = 5, cluster_row=FALSE, cluster_col = FALSE, legend=TRUE, silent = TRUE, color = viridis::viridis(50),annotation_col=annotation, annotation_row= annotation_row, annotation_color = ann_color, annotation_legend = TRUE, fontsize_row=2, main=title)
+    return(phm)
+}
+
+get_heatmap_bulk <- function(plotter, title){
+    ann_color = list(Density = c(High = '#30A3CC', Low = '#FCB357'))
+    annotation <- setNames(as.data.frame(ifelse(grepl('High',colnames(plotter)), 'High', 'Low')), 'Density')
+    rownames(annotation) <- colnames(plotter)
+    phm <- pheatmap::pheatmap(plotter, scale='row', fontsize=5, angle_col =45, show_rownames=FALSE, show_colnames = TRUE, treeheight_row = 5, treeheight_col = 5, cluster_row=TRUE, cluster_col = TRUE, legend=TRUE, silent = TRUE, color = viridis::viridis(50),annotation_col=annotation, annotation_color = ann_color, annotation_legend = TRUE, fontsize_row=2, main=title)
+    return(phm)
+}
 
 ########################
 #### Single cell by CIMA
@@ -569,6 +598,7 @@ for (clust in levels(col_order$Cluster)){
 test[test >2.5] <- 2.5
 test[test < -2.5] <- -2.5
 
+colors_ann[['HighLow']]['Low'] <- '#d3d3d3'
 htmap <- pheatmap::pheatmap(test[,c(col_order$cell_id) ],scale='none', fontsize=5, angle_col =45, show_rownames=TRUE, show_colnames = FALSE, treeheight_row = 0, treeheight_col = 5, cluster_row =TRUE, cluster_col = FALSE, gaps_col = col_gaps, legend=TRUE, annotation_legend=FALSE, silent = TRUE, color = PurpleAndYellow()[5:45]
 , fontsize_row=2, annotation_col = annotation_col, annotation_colors=colors_ann)
 # , cellwidth=0.03)
@@ -577,7 +607,7 @@ signatures_path <- '/home/sevastopol/data/gserranos/CART_HL/Data/signature/Other
 signatures <- list.files(signatures_path)
 
 
-pdf('./Plots/Figure4.pdf', width=7.2, height=10)
+pdf('./Plots/Figure4.pdf', width=7.5, height=10)
 HighAndLow = FALSE
 if(HighAndLow){
     clusters_tmp  <- setNames(as.data.frame(rds_test$seurat_clusters) , 'Cluster')
@@ -597,7 +627,12 @@ if(HighAndLow){
 }
 cowplot::plot_grid(
     cowplot::plot_grid(
-        ggplot(coords, aes(x=UMAP_1, y=UMAP_2, fill= BinScore, shape = CD), color='#5a5a5a') + scale_shape_manual(values=c(21,24))+ geom_point(alpha=0.8) + scale_fill_manual(values=c('#30A3CC', '#FCB357'))  + theme_void()+ labs(subtitle = 'High-low distribution') + guides(fill = guide_legend(override.aes = list(size=3, alpha = 1))) + theme(legend.position='bottom', plot.title = element_text(hjust = 0.5, size = 10)),
+        ggplot() + 
+        geom_point(coords[coords$BinScore == 'Low',], mapping = aes(x=UMAP_1, y=UMAP_2, color= BinScore, shape = CD),alpha=0.6) +
+        geom_point(coords[coords$BinScore == 'High',], mapping = aes(x=UMAP_1, y=UMAP_2, color= BinScore, shape = CD),alpha=0.8) + 
+        scale_color_manual(values=c('High'='#30A3CC', 'Low'='#d3d3d3'))  + theme_void()+ labs(subtitle = 'High-low distribution') + 
+        guides(fill = guide_legend(override.aes = list(size=3, alpha = 1))) + 
+        theme(legend.position='bottom', plot.title = element_text(hjust = 0.5, size = 10)),
         composition,
         cowplot::plot_grid(
             get_expression_signature("Genes_Activation.txt", normData, coords , 1.2),
@@ -613,6 +648,14 @@ ncol=2, rel_widths=c(3,2))
 
 dev.off()
 
+pdf('./Plots/Test.pdf')
+ggplot() + 
+geom_point(coords[coords$BinScore == 'Low',], mapping = aes(x=UMAP_1, y=UMAP_2, color= BinScore, shape = CD),alpha=0.6) +
+geom_point(coords[coords$BinScore == 'High',], mapping = aes(x=UMAP_1, y=UMAP_2, color= BinScore, shape = CD),alpha=0.8) + 
+scale_color_manual(values=c('High'='#30A3CC', 'Low'='#d3d3d3'))  + theme_void()+ labs(subtitle = 'High-low distribution') + 
+guides(fill = guide_legend(override.aes = list(size=3, alpha = 1))) + 
+theme(legend.position='bottom', plot.title = element_text(hjust = 0.5, size = 10))
+dev.off()
 
 normalized_counts_CD4 <- get_normalized_bulk("/home/sevastopol/data/mcallejac/RNA_HighLow_ALL/results/HL_CD4.RData")
 normalized_counts_CD8 <- get_normalized_bulk("/home/sevastopol/data/mcallejac/RNA_HighLow_ALL/results/HL_CD8.RData")
@@ -702,43 +745,195 @@ dev.off()
 
 
 # ATAC-seq
+library(ChIPseeker)
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+library(EnsDb.Hsapiens.v86)
+edb <- EnsDb.Hsapiens.v86
+annotation_Peaks <- TxDb.Hsapiens.UCSC.hg38.knownGene
+
+# CD4
+final.merged.peaks <- read.table("/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/results/Lowd0_vs_Highd0_csaw_denovo_trended_csaw-windows_all.txt", sep="\t", header=T)
+FDR.thresh <- 0.05
+final.merged.peaks.sig <- final.merged.peaks[final.merged.peaks$FDR < FDR.thresh, ]
+
+final.merged.peaks$sig <- "n.s."
+final.merged.peaks$sig[final.merged.peaks$FDR < FDR.thresh] <- "significant"
+
+pdf('./Plots/CD4_DE_peaks_Low_Vs_High.pdf')
+ggplot(final.merged.peaks, aes(x = logCPM, y = logFC, col = factor(sig, levels=c("n.s.", "significant")))) + 
+  geom_point() + scale_color_manual(values = c("black", "red")) + 
+#   geom_smooth() + # smoothed loess fit; can add span=0.5 to reduce computation load/time
+  geom_hline(yintercept = 0) + labs(col = NULL)
+ggplot(final.merged.peaks, aes(x = logCPM, y = logFC, col = factor(sig, levels=c("n.s.", "significant")))) + 
+  geom_point() + scale_color_manual(values = c("black", "red")) + 
+  geom_smooth() + # smoothed loess fit; can add span=0.5 to reduce computation load/time
+  geom_hline(yintercept = 0) + labs(col = NULL)
+dev.off()
+
+
 # we need to use the gapped peaks
 library(ChIPseeker)
 library(TxDb.Hsapiens.UCSC.hg38.knownGene)
 library(EnsDb.Hsapiens.v86)
 edb <- EnsDb.Hsapiens.v86
 annotation_Peaks <- TxDb.Hsapiens.UCSC.hg38.knownGene
-test_path_High <- './Data/High_low/ATACseq/HIGH/CD4/D9_High_CD4_S17_peaks.gappedPeak'
-test_path_Low  <- './Data/High_low/ATACseq/LOW/CD4/D9_High_CD4_S17_peaks.gappedPeak'
-peak_High <- readPeakFile(test_path_High, header=FALSE)
-peak_Low <- readPeakFile(test_path_Low, header=FALSE)
+
+
+
+path_High_CD8 <- '/home/sevastopol/data/gserranos/CART_HL/Data/High_low/ATACseq/HIGH/CD8/High_CD8.narrowPeak'
+path_High_CD4 <- '/home/sevastopol/data/gserranos/CART_HL/Data/High_low/ATACseq/HIGH/CD4/High_CD4.narrowPeak'
+path_Low_CD8  <- '/home/sevastopol/data/gserranos/CART_HL/Data/High_low/ATACseq/LOW/Low_CD8.narrowPeak'
+path_Low_CD4  <- '/home/sevastopol/data/gserranos/CART_HL/Data/High_low/ATACseq/LOW/Low_CD4.narrowPeak'
+
+peak_High_CD8 <- readPeakFile(path_High_CD8, header=FALSE)
+peak_High_CD4 <- readPeakFile(path_High_CD4, header=FALSE)
+peak_Low_CD8  <- readPeakFile(path_Low_CD8, header=FALSE)
+peak_Low_CD4  <- readPeakFile(path_Low_CD4, header=FALSE)
+
+peak_High_CD8 <- keepStandardChromosomes(peak_High_CD8, pruning.mode='coarse')
+peak_High_CD4 <- keepStandardChromosomes(peak_High_CD4, pruning.mode='coarse')
+peak_Low_CD8  <- keepStandardChromosomes(peak_Low_CD8, pruning.mode='coarse')
+peak_Low_CD4  <- keepStandardChromosomes(peak_Low_CD4, pruning.mode='coarse')
+
 
 pdf('./Plots/peakLocationGenome.pdf')
-covplot(peak_High, weightCol='V13')
+covplot(peak_High_CD8, weightCol='V10', title = 'High_CD8')
+covplot(peak_High_CD4, weightCol='V10', title = 'High_CD4')
+covplot(peak_Low_CD8,  weightCol='V10', title = 'Low_CD8')
+covplot(peak_Low_CD4,  weightCol='V10', title = 'Low_CD4')
 dev.off()
 
 promoter <- getPromoters(TxDb=annotation_Peaks, upstream=3000, downstream=3000)
-tagMatrix_High <- getTagMatrix(peak_High, windows=promoter)
 
-pdf('./Plots/TSSbindings.pdf')
-tagHeatmap(tagMatrix_High, xlim=c(-3000, 3000), color="red") 
-# peakHeatmap(test_path, TxDb=annotation_Peaks, upstream=3000, downstream=3000, color="red")
+
+tagMatrix_High_CD8 <- getTagMatrix(peak_High_CD8, windows=promoter)
+tagMatrix_High_CD4 <- getTagMatrix(peak_High_CD4, windows=promoter)
+tagMatrix_Low_CD8  <- getTagMatrix(peak_Low_CD8, windows=promoter)
+tagMatrix_Low_CD4  <- getTagMatrix(peak_Low_CD4, windows=promoter)
+
+
+pdf('./Plots/TSSbindings.pdf', width= 4)
+tagHeatmap(tagMatrix_High_CD8, xlim=c(-3000, 3000), color="red", title='High_CD8') 
+tagHeatmap(tagMatrix_High_CD4, xlim=c(-3000, 3000), color="red", title='High_CD4') 
+tagHeatmap(tagMatrix_Low_CD8 , xlim=c(-3000, 3000), color="red", title='Low_CD8') 
+tagHeatmap(tagMatrix_Low_CD4 , xlim=c(-3000, 3000), color="red", title='Low_CD4') 
 dev.off()
+
 
 pdf('./Plots/AverageProfile.pdf')
-plotAvgProf(tagMatrix, xlim=c(-3000, 3000), xlab="Genomic Region (5'->3')", ylab = "Read Count Frequency")
+High_CD8 <- plotAvgProf(tagMatrix_High_CD8, xlim=c(-3000, 3000), xlab="Genomic Region (5'->3')", ylab = "Read Count Frequency")
+High_CD4 <- plotAvgProf(tagMatrix_High_CD4, xlim=c(-3000, 3000), xlab="Genomic Region (5'->3')", ylab = "Read Count Frequency")
+Low_CD8 <- plotAvgProf(tagMatrix_Low_CD8, xlim=c(-3000, 3000), xlab="Genomic Region (5'->3')", ylab = "Read Count Frequency")
+Low_CD4 <- plotAvgProf(tagMatrix_Low_CD4, xlim=c(-3000, 3000), xlab="Genomic Region (5'->3')", ylab = "Read Count Frequency")
+
+High_CD8 <- High_CD8$data
+High_CD8$HighLow <- 'High'
+Low_CD8 <- Low_CD8$data
+Low_CD8$HighLow <- 'Low'
+plotter_CD8 <- rbind(High_CD8, Low_CD8)
+ggplot(plotter_CD8, aes(x=pos, y=value, color=HighLow)) + geom_line() + 
+xlim(-3000, 3000) + ggtitle('CD8') +xlab("Genomic Region (5'->3')")+ ylab("Read Count Frequency") + theme_classic() + scale_color_manual(values=c('High'='#30A3CC', 'Low'='#FCB357'))
+
+High_CD4 <- High_CD4$data
+High_CD4$HighLow <- 'High'
+Low_CD4 <- Low_CD4$data
+Low_CD4$HighLow <- 'Low'
+plotter_CD4<- rbind(High_CD4, Low_CD4)
+ggplot(plotter_CD4, aes(x=pos, y=value, color=HighLow)) + geom_line() + 
+xlim(-3000, 3000)+ ggtitle('CD4') + xlab("Genomic Region (5'->3')")+ ylab("Read Count Frequency") + theme_classic() + scale_color_manual(values=c('High'='#30A3CC', 'Low'='#FCB357'))
+
 dev.off()
 
-peakAnno <- annotatePeak(peak_High, tssRegion=c(-3000, 3000),
-                         TxDb=annotation_Peaks, annoDb="org.Hs.eg.db")
 
-seqlevelsStyle(edb) <- "UCSC"
-peakAnno.edb <- annotatePeak(peak_High, tssRegion=c(-3000, 3000),
-                             TxDb=edb, annoDb="org.Hs.eg.db")
 
-pdf('./Plots/GenAnnotation.pdf')
-plotAnnoPie(peakAnno)
+
+peakAnno_High_CD8 <- annotatePeak(peak_High_CD8, tssRegion=c(-3000, 3000),TxDb=annotation_Peaks, annoDb="org.Hs.eg.db")
+peakAnno_High_CD4 <- annotatePeak(peak_High_CD4, tssRegion=c(-3000, 3000),TxDb=annotation_Peaks, annoDb="org.Hs.eg.db")
+peakAnno_Low_CD8  <- annotatePeak(peak_Low_CD8, tssRegion=c(-3000, 3000),TxDb=annotation_Peaks, annoDb="org.Hs.eg.db")
+peakAnno_Low_CD4  <- annotatePeak(peak_Low_CD4, tssRegion=c(-3000, 3000),TxDb=annotation_Peaks, annoDb="org.Hs.eg.db")
+
+
+pdf('./Plots/GenAnnotationGR.pdf')
+plotAnnoPie(peakAnno_High_CD8)
+plotAnnoPie(peakAnno_High_CD4)
+plotAnnoPie(peakAnno_Low_CD8)
+plotAnnoPie(peakAnno_Low_CD4)
 dev.off()
+
+
+
+peakAnno_High_CD8_dfAnn <- as.data.frame(peakAnno_High_CD8)
+peakAnno_High_CD4_dfAnn <- as.data.frame(peakAnno_High_CD4)
+peakAnno_Low_CD8_dfAnn <- as.data.frame(peakAnno_Low_CD8)
+peakAnno_Low_CD4_dfAnn <- as.data.frame(peakAnno_Low_CD4)
+
+
+for(signature in signatures){
+    message(signature)
+    gene_list <- as.character(read.table(paste0(signatures_path, '/', signature))$V1)
+    signature <- stringr::str_extract(signature, '[\\S]+(?=\\.)')
+    pdf(paste0('./Plots/ATAC_',signature,'.pdf'))
+   
+    peakAnno_High_CD8_tmp <- makeGRangesFromDataFrame(peakAnno_High_CD8_dfAnn[peakAnno_High_CD8_dfAnn$SYMBOL %in% gene_list,], keep.extra.columns=TRUE)
+    peakAnno_High_CD8_tmp <- getTagMatrix(peakAnno_High_CD8_tmp, windows=promoter)
+    print(tagHeatmap(peakAnno_High_CD8_tmp, xlim=c(-3000, 3000), color="red", title=paste0('High_CD8_', signature)))
+    
+    peakAnno_High_CD4_tmp <- makeGRangesFromDataFrame(peakAnno_High_CD4_dfAnn[peakAnno_High_CD4_dfAnn$SYMBOL %in% gene_list,], keep.extra.columns=TRUE)
+    peakAnno_High_CD4_tmp <- getTagMatrix(peakAnno_High_CD4_tmp, windows=promoter)
+    print(tagHeatmap(peakAnno_High_CD4_tmp, xlim=c(-3000, 3000), color="red", title=paste0('High_CD4_', signature)))
+    
+    peakAnno_Low_CD8_tmp <- makeGRangesFromDataFrame(peakAnno_Low_CD8_dfAnn[peakAnno_Low_CD8_dfAnn$SYMBOL %in% gene_list,], keep.extra.columns=TRUE)  
+    peakAnno_Low_CD8_tmp <- getTagMatrix(peakAnno_Low_CD8_tmp, windows=promoter)
+    print(tagHeatmap(peakAnno_Low_CD8_tmp, xlim=c(-3000, 3000), color="red", title=paste0('Low_CD4_', signature)))
+    
+    peakAnno_Low_CD4_tmp <- makeGRangesFromDataFrame(peakAnno_Low_CD4_dfAnn[peakAnno_Low_CD4_dfAnn$SYMBOL %in% gene_list,])
+    peakAnno_Low_CD4_tmp <- getTagMatrix(peakAnno_Low_CD4_tmp, windows=promoter)
+    print(tagHeatmap(peakAnno_Low_CD4_tmp, xlim=c(-3000, 3000), color="red", title=paste0('Low_CD4_', signature)))
+
+    tmp_High_CD8 <- plotAvgProf(peakAnno_High_CD8_tmp, xlim=c(-3000, 3000))
+    tmp_Low_CD8  <- plotAvgProf(peakAnno_Low_CD8_tmp, xlim=c(-3000, 3000))
+
+    tmp_High_CD8 <- tmp_High_CD8$data
+    tmp_High_CD8$HighLow <- 'High'
+    tmp_Low_CD8 <- tmp_Low_CD8$data
+    tmp_Low_CD8$HighLow <- 'Low'
+    plotter_CD8 <- rbind(tmp_High_CD8, tmp_Low_CD8)
+    print(ggplot(plotter_CD8, aes(x=pos, y=value, color=HighLow)) + geom_line() + 
+    xlim(-3000, 3000) + ggtitle(paste0('CD8  ',signature)) +xlab("Genomic Region (5'->3')")+ ylab("Read Count Frequency") + theme_classic() + scale_color_manual(values=c('High'='#30A3CC', 'Low'='#FCB357')))
+
+    tmp_High_CD4 <- plotAvgProf(peakAnno_High_CD4_tmp, xlim=c(-3000, 3000))
+    tmp_Low_CD4  <- plotAvgProf(peakAnno_Low_CD4_tmp, xlim=c(-3000, 3000))
+
+    tmp_High_CD4 <- tmp_High_CD4$data
+    tmp_High_CD4$HighLow <- 'High'
+    tmp_Low_CD4 <- tmp_Low_CD4$data
+    tmp_Low_CD4$HighLow <- 'Low'
+    plotter_CD4 <- rbind(tmp_High_CD4, tmp_Low_CD4)
+    print(ggplot(plotter_CD4, aes(x=pos, y=value, color=HighLow)) + geom_line() + 
+    xlim(-3000, 3000)+ ggtitle(paste0('CD4  ', signature)) + xlab("Genomic Region (5'->3')")+ ylab("Read Count Frequency") + theme_classic() + scale_color_manual(values=c('High'='#30A3CC', 'Low'='#FCB357')))
+
+    dev.off()
+}
+
+
+
+# Genome coverage with differential peaks
+consensusPeaks_CD8 <- read.table('/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/results/cd8_Lowd0_vs_Highd0_csaw_denovo_trended_csaw-windows_significant.txt', sep="\t", header=T)
+consensusPeaks_CD4 <- read.table('/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/results/Lowd0_vs_Highd0_csaw_denovo_trended_csaw-windows_significant.txt', sep="\t", header=T)
+
+consensusPeaks_CD8 <- GenomicRanges::makeGRangesFromDataFrame(consensusPeaks_CD8, keep.extra.columns=TRUE)
+consensusPeaks_CD4 <- GenomicRanges::makeGRangesFromDataFrame(consensusPeaks_CD4, keep.extra.columns=TRUE)
+
+write.table(data.frame(consensusPeaks_CD4), file="/home/sevastopol/data/gserranos/CART_HL/Data/High_low/ATACseq/Diff_peaks_CD4.bed", quote=F, sep="\t", row.names=F, col.names=F)
+write.table(data.frame(consensusPeaks_CD8), file="/home/sevastopol/data/gserranos/CART_HL/Data/High_low/ATACseq/Diff_peaks_CD8.bed", quote=F, sep="\t", row.names=F, col.names=F)
+
+
+pdf('./Plots/peakLocationGenomeDifferential.pdf')
+ChIPseeker::covplot(consensusPeaks_CD8, weightCol='logCPM', title = 'CD8')
+ChIPseeker::covplot(consensusPeaks_CD4, weightCol='logCPM', title = 'CD4')
+dev.off()
+
+
 
 # TCR_Clonality
 colors_ann <- list( 'HighLow' = c(High = '#30A3CC', Low = '#FCB357'))
@@ -746,7 +941,8 @@ colors_ann <- list( 'HighLow' = c(High = '#30A3CC', Low = '#FCB357'))
 bin_high_low$Patient <- stringr::str_extract(bin_high_low$cell_id, '^[0-9da]+')
 bin_high_low$cell <- stringr::str_extract(bin_high_low$cell_id, '(?<=_)[A-Z0-9\\-]+')
 folders <- list.files('/home/sevastopol/data/gserranos/CART_HL/Data/TCR_clonality/', pattern='day0')
-plotter <- data.frame(Var1 = NULL, Freq= NULL, x = NULL, BinScore= NULL)
+plotter <- data.frame(Var1 = NULL, Freq= NULL, Sample = NULL, BinScore= NULL)
+plotter_all <- data.frame(Var1 = NULL, Freq= NULL, Sample = NULL, BinScore= NULL)
 for(folder in folders){
     print(folder)
     tcr <- read.table(paste0('/home/sevastopol/data/gserranos/CART_HL/Data/TCR_clonality/',folder,'/outs/filtered_contig_annotations.csv'), sep=',', header=TRUE)
@@ -754,6 +950,12 @@ for(folder in folders){
     tcr_filtered <- unique(tcr[, c( 'barcode', 'raw_clonotype_id')])
     tcr_filtered <- tcr_filtered[tcr_filtered$raw_clonotype_id != '',]
     n_cells <- nrow(tcr_filtered)
+    #check Top frequence Clonotype CDR3 Sequences
+    print(max(table(tcr_filtered$raw_clonotype_id)))
+    props <- as.data.frame(table(tcr_filtered$raw_clonotype_id))
+    props$Freq <- (props$Freq/n_cells)*100
+    props$Sample <- folder
+    plotter_all <- rbind(plotter_all, props)
 
     bin_high_low_tmp <- bin_high_low[bin_high_low$cell %in% tcr_filtered$barcode,]
     tcr_filtered <- merge(tcr_filtered, bin_high_low_tmp[, c('cell', 'BinScore')], by.x='barcode', by.y='cell')
@@ -761,13 +963,147 @@ for(folder in folders){
 
     props <- as.data.frame(table(tcr_filtered$raw_clonotype_id))
     props$Freq <- (props$Freq/n_cells)*100
-    props$X <- folder
+    props$Sample <- folder
     props <- merge(props, tcr_filtered[, c('raw_clonotype_id', 'BinScore')], by.x='Var1', by.y='raw_clonotype_id')
     plotter <- rbind(plotter, props)
 }
 
 
 pdf('./Plots/TCR_Clonality.pdf')
-ggplot(plotter, aes(y=Freq, x=X, color=BinScore)) + geom_point(alpha=0.7) + theme_classic()  + geom_jitter(width = 0.25, height = 0.001) + scale_color_manual(values=c('#30A3CC', '#FCB357'))
+ggplot(plotter_all, aes(y=Freq, x=Sample)) + geom_point(alpha=0.7) + theme_classic()  + geom_jitter(width = 0.25, height = 0.001) + scale_color_manual(values=c('#30A3CC', '#FCB357'))
+ggplot(plotter, aes(y=Freq, x=Sample, color=BinScore)) + geom_point(alpha=0.7) + theme_classic()  + geom_jitter(width = 0.25, height = 0.001) + scale_color_manual(values=c('#30A3CC', '#FCB357'))
+ggplot(plotter, aes(y=Freq, x=Sample, fill=BinScore)) + geom_violin(alpha=0.7) + theme_classic()  + scale_fill_manual(values=c('#30A3CC', '#FCB357'))
 dev.off()
+
+
+
+
+#### Venn diagram
+
+DE_peaks_CD4 <- read.delim("/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/results/Lowd0_vs_Highd0_csaw_denovo_trended_csaw-windows_significant_Annotated.txt", sep="\t", header=T)
+DE_Genes_CD4 <- read.delim('/home/sevastopol/data/gserranos/CART_HL/Data/signature/BatchK_CD4_output_BASAL_BOTH_LowvsHigh.tsv',sep="\t",header=T)
+# DE_Genes$GeneID[which(DE_Genes$GeneID %in% DE_peaks$SYMBOL)]
+
+DE_peaks_CD8 <- read.delim("/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/results/cd8_Lowd0_vs_Highd0_csaw_denovo_trended_csaw-windows_significant_Annotated.txt", sep="\t", header=T)
+DE_Genes_CD8 <- read.delim('/home/sevastopol/data/gserranos/CART_HL/Data/signature/BatchK_CD8_output_BASAL_BOTH_LowvsHigh.tsv',sep="\t",header=T)
+# DE_Genes_CD8 <- read.delim('/home/sevastopol/data/gserranos/CART_HL/Data/genesrnaseq/BatchK_CD8_output_BASAL_BOTH_LowvsHigh.tsv',sep="\t",header=T)
+# VennDiagram::venn.diagram(x = list(DE_Genes$GeneID, DE_peaks$SYMBOL), category.names = c('Bulk RNA', 'ATAC RNA'),
+# filename = './Plots/Bulk_ATAC_venn.png', output=TRUE)
+
+ven_list_CD4 = list('Bulk RNA' = unique(DE_Genes_CD4[DE_Genes_CD4$padj < 0.05 ,'GeneID']), 'ATAC RNA' = unique(DE_peaks_CD4$SYMBOL))
+ven_list_CD8 = list('Bulk RNA' = unique(DE_Genes_CD8[DE_Genes_CD8$padj < 0.05 ,'GeneID']), 'ATAC RNA' = unique(DE_peaks_CD8$SYMBOL))
+ven_list_CD4_flt = list('Bulk RNA' = unique(DE_Genes_CD4[DE_Genes_CD4$padj < 0.05 ,'GeneID']), 'ATAC RNA' = unique(DE_peaks_CD4[grepl('Promoter',DE_peaks_CD4$annotation), 'SYMBOL']))
+ven_list_CD8_flt = list('Bulk RNA' = unique(DE_Genes_CD8[DE_Genes_CD8$padj < 0.05 ,'GeneID']), 'ATAC RNA' = unique(DE_peaks_CD8[grepl('Promoter',DE_peaks_CD8$annotation), 'SYMBOL']))
+
+
+pdf('./Plots/Bulk_ATAC_venn.pdf')
+cowplot::plot_grid(
+ggvenn::ggvenn(ven_list_CD4,
+    fill_color = hues::iwanthue(2),
+    stroke_size = 0.4,
+    set_name_size = 5,
+    show_percentage = F,
+    fill_alpha = 0.4,
+    stroke_color = 'white',
+    stroke_alpha = 1,
+    stroke_linetype = 'solid',
+    text_color = 'black',
+    text_size = 6,
+    label_sep = ','
+) + ggtitle('CD4')+ theme(plot.title = element_text(hjust = 0.5)),
+ggvenn::ggvenn(ven_list_CD8,
+    fill_color = hues::iwanthue(2),
+    stroke_size = 0.4,
+    set_name_size = 5,
+    show_percentage = F,
+    fill_alpha = 0.4,
+    stroke_color = 'white',
+    stroke_alpha = 1,
+    stroke_linetype = 'solid',
+    text_color = 'black',
+    text_size = 6,
+    label_sep = ','
+) + ggtitle('CD8')+ theme(plot.title = element_text(hjust = 0.5)),
+ncol=2)
+cowplot::plot_grid(
+
+ggvenn::ggvenn(ven_list_CD4_flt,
+    fill_color = hues::iwanthue(2),
+    stroke_size = 0.4,
+    set_name_size = 5,
+    show_percentage = F,
+    fill_alpha = 0.4,
+    stroke_color = 'white',
+    stroke_alpha = 1,
+    stroke_linetype = 'solid',
+    text_color = 'black',
+    text_size = 6,
+    label_sep = ','
+) + ggtitle('CD4 Only Promoter')+ theme(plot.title = element_text(hjust = 0.5)),
+ggvenn::ggvenn(ven_list_CD8_flt,
+    fill_color = hues::iwanthue(2),
+    stroke_size = 0.4,
+    set_name_size = 5,
+    show_percentage = F,
+    fill_alpha = 0.4,
+    stroke_color = 'white',
+    stroke_alpha = 1,
+    stroke_linetype = 'solid',
+    text_color = 'black',
+    text_size = 6,
+    label_sep = ','
+) + ggtitle('CD8 Only Promoter')+ theme(plot.title = element_text(hjust = 0.5)),
+ncol=2)
+dev.off()
+
+write.table(intersect( unique(DE_Genes_CD4[DE_Genes_CD4$padj < 0.05 ,'GeneID']), unique(DE_peaks_CD4$SYMBOL) ), row.names=FALSE, col.names=FALSE, quote=FALSE, './Plots/CD4_DEG_Bulk_and_Atac_genes.txt')
+write.table(intersect( unique(DE_Genes_CD8[DE_Genes_CD8$padj < 0.05 ,'GeneID']), unique(DE_peaks_CD8$SYMBOL) ), row.names=FALSE, col.names=FALSE, quote=FALSE, './Plots/CD8_DEG_Bulk_and_Atac_genes.txt')
+
+# Heatmaps for SIMIC Bulk and ATAC
+library("ChIPseeker")
+library("TxDb.Hsapiens.UCSC.hg38.knownGene")
+library("org.Hs.eg.db")
+library(gridExtra)
+txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene
+
+
+TF_list <- c('NR4A1', 'BATF', 'ARID5A', 'RFX5', 'SATB1', 'ATF5', 'NR4A1', 'ZBTB7B', 'EED' )
+simic_out <- read.table('/home/sevastopol/data/gserranos/CART_HL/SimiC/Data/data_2_nets_V2.tsv', sep='\t', header=TRUE)
+
+for(CD in c('CD4', 'CD8')){
+    message(CD)
+    Bulk_signature <- read.delim(file=paste0('./Data/signature/BatchK_',CD,'_output_BASAL_BOTH_LowvsHigh.tsv'),sep="\t",header=T)
+    results_atac <- read.table(paste0('/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/results/AVER_guille_',CD,'.txt'), sep='\t', header=TRUE)
+
+    results_atac_ranges <- makeGRangesFromDataFrame(results_atac[,1:3])
+    peakAnno <- annotatePeak(results_atac_ranges, tssRegion=c(-3000, 3000),
+                            TxDb=txdb, annoDb="org.Hs.eg.db")
+    patients_2_keep <- grep('Low|High', grep('d0',grep('^D[0-9]',names(results_atac), value=TRUE), value=TRUE), value=TRUE)
+    results_atac_ann <- cbind(results_atac_ranges, as.data.frame(peakAnno),results_atac )
+
+    pdf(paste0('./Plots/ATAC_',CD,'_SIMIC_phm.pdf'))
+    for(TF in TF_list){
+        message(TF)
+        targets_tmp <- as.character(simic_out[simic_out$driver == TF, 'target'])
+        results_atac_ann_tmp <- results_atac_ann[results_atac_ann$SYMBOL %in% targets_tmp, ]
+        results_atac_ann_tmp$unique_ID <- paste0(results_atac_ann_tmp$SYMBOL, '_', results_atac_ann_tmp$start, '-',results_atac_ann_tmp$end)
+        data_2_plot <- results_atac_ann_tmp[,patients_2_keep]
+        rownames(data_2_plot) <- results_atac_ann_tmp$unique_ID 
+        print(grid.arrange(arrangeGrob(grobs=list(get_heatmap_atac(data_2_plot, TF, FALSE)[[4]]))))
+
+    }
+    dev.off()
+
+    pdf(paste0('./Plots/Bulk_',CD,'_SIMIC_phm.pdf'))
+    for(TF in TF_list){
+        targets_tmp <- as.character(simic_out[simic_out$driver == TF, 'target'])
+        Bulk_signature_tmp <- Bulk_signature[Bulk_signature$GeneID %in% targets_tmp, ]
+        data_2_plot <- Bulk_signature_tmp[, grepl('^D', colnames(Bulk_signature_tmp))]
+        rownames(data_2_plot) <- Bulk_signature_tmp$GeneID
+        print(grid.arrange(arrangeGrob(grobs=list(get_heatmap_bulk(data_2_plot, TF)[[4]]))))
+
+
+    }
+    dev.off()
+}
 
