@@ -153,19 +153,23 @@ dev.off()
 
 # + viridis::scale_fill_viridis(discrete = TRUE, alpha=0.6)
 
+library(ggplot2)
+library(ggprism)
+
 pdf('./Plots/Signature_HighScore_boxplot.pdf')
+
 test_CD4_tmp <- test_CD4
 test_CD8_tmp <- test_CD8
-est_CD4_tmp$CD <-  'CD4'
+test_CD4_tmp$CD <-  'CD4'
 test_CD8_tmp$CD <-  'CD8'
 tmp <- rbind(test_CD4_tmp, test_CD8_tmp)
 
-ggplot2::ggplot(tmp, ggplot2::aes(x = new_OS, y = High_pondered, fill=new_OS)) + ggplot2::geom_boxplot() + ggplot2::geom_point(size = 0.6, alpha = 0.4) + ggplot2::theme_classic() + ggplot2::scale_fill_manual(values=c(c('#DBBE78', '#7F7F7F'))) + ggplot2::theme(legend.position='none')+ ggplot2::labs(title='Wilcoxon signed-rank test over NR and CR', x='Overall Survival', y='CAR density score') + ggplot2::facet_wrap(~CD) + 
+ggplot2::ggplot(tmp, ggplot2::aes(x = new_OS, y = High_pondered, fill=new_OS)) + ggplot2::geom_boxplot(color='black') + ggplot2::geom_point(size = 0.6, alpha = 0.4) + ggplot2::theme_classic()  + ggplot2::theme(legend.position='none')+ ggplot2::labs(title='Wilcoxon signed-rank test over NR and CR', x='Overall Survival', y='CAR density score') + ggplot2::facet_wrap(~CD) + guides() +   theme_prism()+ ggplot2::scale_fill_manual(values=c(c('#ebb571', '#d3d3d3'))) + 
 ggsignif::geom_signif(comparisons = list(c("CR", "NR")), map_signif_level = TRUE)
 
 dev.off()
 
-
++ ggplot2::scale_fill_manual(values=c(c('#FCB357', '#d3d3d3')))
 
 # BULK CIMA
 

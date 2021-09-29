@@ -373,6 +373,17 @@ get_heatmap_bulk <- function(plotter, title){
     return(phm)
 }
 
+
+get_pca <- function(dataPCA, variation, color2plot){
+    p = switch(color2plot, 
+    'HighLow' = ggplot(data=dataPCA, aes(x = PC1, y = PC2, color=HighLow)) + geom_point(size=3) + xlab(paste0("PC1: ", variation[1], "% variance")) + ylab(paste0("PC2: ", variation[2], "% variance")) + theme_classic() +  scale_color_manual(values=c('High'='#30A3CC', 'Low'='#FCB357')) + theme(legend.position='none', axis.text=element_blank(), axis.ticks=element_blank()) ,
+    'Donor'   = ggplot(data=dataPCA, aes(x = PC1, y = PC2, color=Donor)) + geom_point(size=3) + xlab(paste0("PC1: ", variation[1], "% variance")) + ylab(paste0("PC2: ", variation[2], "% variance")) + theme_classic()  + hues::scale_color_iwanthue() + theme(legend.position='none', axis.text=element_blank(), axis.ticks=element_blank()))
+    return(p)
+}
+
+
+
+RdWhBl <- colorRampPalette(rev(brewer.pal(n=11, name="RdBu")))(100)
 ########################
 #### Single cell by CIMA
 ########################
@@ -943,6 +954,7 @@ bin_high_low$cell <- stringr::str_extract(bin_high_low$cell_id, '(?<=_)[A-Z0-9\\
 folders <- list.files('/home/sevastopol/data/gserranos/CART_HL/Data/TCR_clonality/', pattern='day0')
 plotter <- data.frame(Var1 = NULL, Freq= NULL, Sample = NULL, BinScore= NULL)
 plotter_all <- data.frame(Var1 = NULL, Freq= NULL, Sample = NULL, BinScore= NULL)
+
 for(folder in folders){
     print(folder)
     tcr <- read.table(paste0('/home/sevastopol/data/gserranos/CART_HL/Data/TCR_clonality/',folder,'/outs/filtered_contig_annotations.csv'), sep=',', header=TRUE)
@@ -953,6 +965,7 @@ for(folder in folders){
     #check Top frequence Clonotype CDR3 Sequences
     print(max(table(tcr_filtered$raw_clonotype_id)))
     props <- as.data.frame(table(tcr_filtered$raw_clonotype_id))
+    props <- props[props$Freq !=0, ]
     props$Freq <- (props$Freq/n_cells)*100
     props$Sample <- folder
     plotter_all <- rbind(plotter_all, props)
@@ -976,6 +989,47 @@ ggplot(plotter, aes(y=Freq, x=Sample, fill=BinScore)) + geom_violin(alpha=0.7) +
 dev.off()
 
 
+
+all_folder_plotter <- data.frame(Clonotype=NULL, Freq=NULL, Sample=NULL)
+for(folder in folders){
+    print(folder)
+    tcr <- read.table(paste0('/home/sevastopol/data/gserranos/CART_HL/Data/TCR_clonality/',folder,'/outs/filtered_contig_annotations.csv'), sep=',', header=TRUE)
+
+    tcr_filtered <- unique(tcr[, c( 'barcode', 'raw_clonotype_id')])
+    tcr_filtered <- tcr_filtered[grepl('^clonotype',tcr_filtered$raw_clonotype_id),]
+    n_cells <- nrow(tcr_filtered)
+    #check Top frequence Clonotype CDR3 Sequences
+    print(max(table(tcr_filtered$raw_clonotype_id)))
+    props <- as.data.frame(table(tcr_filtered$raw_clonotype_id))
+    props <- props[order(-props$Freq),]
+    props <- props[props$Freq !=0,]
+    props_table <- setNames(as.data.frame(table(props$Freq)) , c('Clonotype_uniqueness', 'Frequency'))
+    props_table$Percentage <- (props_table$Frequency/sum(props_table$Frequency)) *100
+    props_table_High <- tcr_filtered[tcr_filtered$barcode %in%  bin_high_low[bin_high_low$BinScore == 'High', 'cell'],]
+    props_table_High <- as.data.frame(table(props_table_High$raw_clonotype_id))
+    props_table_High <- setNames(as.data.frame(table(props_table_High$Freq)) , c('Clonotype_uniqueness', 'Frequency'))
+    props_table_High$Percentage <- (props_table_High$Frequency/sum(props_table_High$Frequency)) *100
+    data_2_xlsx <- list('All'=props_table, 'High'=props_table_High)
+    WriteXLS::WriteXLS(data_2_xlsx, ExcelFileName=paste0('./Plots/Clonality_',folder,'.xlsx'), SheetNames = names(data_2_xlsx),  col.names=TRUE, row.names=FALSE, BoldHeaderRow=TRUE)
+
+    props_2_plot <- props[1:10,]
+    props_2_plot$Var1 <- paste0('Clonotype', seq(1,nrow(props_2_plot)))
+    other_clonotype <- tcr_filtered$raw_clonotype_id[!tcr_filtered$raw_clonotype_id %in% props_2_plot$Var1]
+
+    props_2_plot <- rbind(props_2_plot, data.frame(Var1='Other', Freq=length(other_clonotype)))
+    colnames(props_2_plot) <- c('Clonotype', 'Freq')
+    props_2_plot$Sample <- folder
+    all_folder_plotter <- rbind(all_folder_plotter, props_2_plot)
+
+
+}
+colors <- hues::iwanthue(10)
+names(colors) <- grep('^Clonotype', props_2_plot$Clonotype, value=TRUE)
+
+pdf('./Plots/TCR_all_Barplot.pdf')
+colors <- c(colors, 'Other'='#d3d3d3')
+ggplot(all_folder_plotter, aes(fill=Clonotype, y = Freq, x=Sample)) + geom_bar(position='fill', stat='identity') + scale_fill_manual(values=colors) + theme_classic()
+dev.off()
 
 
 #### Venn diagram
@@ -1107,3 +1161,181 @@ for(CD in c('CD4', 'CD8')){
     dev.off()
 }
 
+
+
+
+
+# PCA for SC and BULK
+
+# == SC ==
+load('/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/RSession/cd8_2105_Csaw_fin.RData')
+counts <- edgeR::getCounts(y)
+cols_2_keep <- grep('High|Low', grep('d0', colnames(y), value=TRUE), value=TRUE)
+counts <- counts[, cols_2_keep]
+group <-factor(stringr::str_extract(colnames(counts), '^D[0-9a]+'))
+dge <- edgeR::DGEList(counts=counts, group=group)
+dge <- edgeR::calcNormFactors(dge, method = "TMM")
+logCPM <- edgeR::cpm(dge, log=TRUE, prior.count=2)
+
+combat_edata1 = sva::ComBat(dat=logCPM, batch=group, mod=NULL, par.prior=TRUE, prior.plots=FALSE)
+pca <- prcomp(t(combat_edata1))
+print(summary(pca))
+pcaData_SC = as.data.frame(pca$x)
+pcaData_SC$sample=rownames(pcaData_SC)
+pcaData_SC$HighLow <- stringr::str_extract(pcaData_SC$sample, '(?<=_)[A-Za-z]+(?=_)')
+pcaData_SC$Donor <- stringr::str_extract(pcaData_SC$sample, '^[A-Z0-9]+')
+percentVar_SC = round(100 * (pca$sdev^2 / sum( pca$sdev^2 ) ))
+
+# == Bulk ==
+
+counts_norm <- read.table('/home/sevastopol/data/gserranos/CART_HL/Data/signature/BatchK_CD8_output_BASAL_BOTH_LowvsHigh.tsv', sep='\t', header=TRUE)
+counts_norm <- counts_norm[,grepl('^D', colnames(counts_norm))]
+group <-factor(stringr::str_extract(colnames(counts_norm), '^D[0-9a]+'))
+
+combat_edata2 = sva::ComBat(dat=as.matrix(counts_norm), batch=group, mod=NULL, par.prior=TRUE, prior.plots=FALSE)
+pca <- prcomp(t(combat_edata2))
+print(summary(pca))
+pcaData_Bulk = as.data.frame(pca$x)
+pcaData_Bulk$sample=rownames(pcaData_Bulk)
+pcaData_Bulk$HighLow <- stringr::str_extract(pcaData_Bulk$sample, '(?<=_)[A-Za-z]+(?=_)')
+pcaData_Bulk$Donor <- stringr::str_extract(pcaData_Bulk$sample, '^[A-Z0-9]+')
+percentVar_Bulk = round(100 * (pca$sdev^2 / sum( pca$sdev^2 ) ))
+
+
+
+pdf('./Plots/PCA_SCandBulk.pdf')
+lgnd <- cowplot::get_legend(get_pca(pcaData_Bulk, percentVar_Bulk, 'HighLow')+ theme(legend.position='right'))
+cowplot::plot_grid(
+    cowplot::plot_grid(
+        get_pca(pcaData_Bulk, percentVar_Bulk, 'HighLow') + ggtitle('RNA-seq'),
+        get_pca(pcaData_SC, percentVar_SC, 'HighLow')+ ggtitle('Single Cell RNA-seq'),
+        ncol=1
+    ),lgnd, ncol=2, rel_widths = c(1, 0.5))
+dev.off()
+
+
+
+
+
+# ATAC_peaks 
+
+
+
+library(Gviz)
+library(rtracklayer)
+library(GenomicFeatures)
+library(TxDb.Hsapiens.UCSC.hg38.knownGene)
+require(tidyverse)
+require(biomaRt)
+require(org.Hs.eg.db)
+
+txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene 
+gtrack <- GenomeAxisTrack()
+
+
+
+get_peaks <- function(CHR, START, END, HIGH, LOW, filter_genes=NULL,HLstart=NULL, HLend=NULL){
+    if(START > END){
+        print('inversing start-end')
+        tmp_start <- START
+        tmp_end <- END
+        START <- tmp_end
+        END <- tmp_start
+    }
+    txdb <- TxDb.Hsapiens.UCSC.hg38.knownGene 
+    gtrack <- GenomeAxisTrack()
+    CHR <- as.character(CHR) # chromosome number
+    itrack <- IdeogramTrack(genome="hg38", 
+                        chromosome=paste0("chr",CHR),
+                        from =START, to=END)
+    itrack@chromosome <- CHR
+
+    # remove chr from chromosome naming
+    # levels(itrack@bandTable$chrom) <- sub("^chr", "", levels(itrack@bandTable$chrom), ignore.case=T)
+    HIGH_NAME <- stringr::str_extract(HIGH, '(?<=\\/)[Da0-9]+')
+    LOW_NAME  <- stringr::str_extract(LOW, '(?<=\\/)[Da0-9]+')
+    bw_high <- import.bw(HIGH, as="GRanges")
+    bw_low  <- import.bw(LOW, as="GRanges")
+   
+    MAX = max(max(bw_high[seqnames(bw_high) == paste0('chr',CHR) & start(bw_high) > START & end(bw_high) < END , 'score']$score), max(bw_low[seqnames(bw_low) == paste0('chr',CHR) & start(bw_low) > START & end(bw_low) < END , 'score']$score))
+    MIN= 0
+    MAX= 3
+    # START <- START - 20000
+    # END <- END + 20000
+    bw_high_track <- DataTrack(range=bw_high,
+                        name = paste0('High\n', HIGH_NAME),
+                        chromosome=CHR,
+                        from =START,
+                        to=END,  col.histogram=c('#36A3CC'), 
+                        ylim = c(MIN, MAX))
+    bw_low_track <- DataTrack(range=bw_low,
+                            name = paste0('Low\n', LOW_NAME),
+                            chromosome=CHR,
+                            from =START,
+                            to=END,  col.histogram=c('#DBBE78'),
+                            ylim = c(MIN, MAX))
+
+    bm <- useMart( biomart = "ENSEMBL_MART_ENSEMBL", 
+                dataset = "hsapiens_gene_ensembl")
+    if(!is.null(filter_genes)){
+        biomTrack <- BiomartGeneRegionTrack(genome = "hg38", chromosome = CHR, 
+                                        start = START, end = END,
+                                        filters=list(external_gene_name=filter_genes),
+                                        name = "ENSEMBL", biomart = bm,col.line = NULL, col= NULL, 
+                                        fontface.group = 4)
+
+    }else{
+        biomTrack <- BiomartGeneRegionTrack(genome = "hg38", chromosome = CHR, 
+                                            start = START, end = END,
+                                            # filters=list(external_gene_name=c("TRPM3", 'KLF9')),
+                                            name = "ENSEMBL", biomart = bm,col.line = NULL, col= NULL, 
+                                            fontface.group = 4)
+    }
+
+    if(!is.null(HLstart) & !is.null(HLend)){
+        ht <- HighlightTrack(trackList = c(bw_high_track,bw_low_track, biomTrack), 
+        start = c(70200000), 
+        width =100000, 
+        chromosome = CHR,
+        fill="#A8A8A8", 
+        col='grey')
+    }else{
+        filename <- paste0('./Plots/',CHR, '_',START,'_',END,'_tmp.pdf')
+        pdf(filename, height=4, width=7)
+        # c( itrack, bw_high_track, bw_low_track, biomTrack, gtrack)
+        Gviz::plotTracks(c(bw_high_track, bw_low_track, biomTrack),
+        sizes = c(5,5,2),
+        transcriptAnnotation="symbol",
+        from =START,
+        to=END,
+        chromosome = CHR,
+        fontcolor = "black",
+        col.axis="black",
+        fontsize=15,
+        showTitle=TRUE,
+        collapseTranscripts = 'longest', window="auto", 
+        type="histogram", cex.title=0.7, fontsize=10,littleTicks = TRUE, add=TRUE)
+        dev.off()
+    }
+    return(filename)
+
+}
+
+high_bw <- '/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D14_High_CD8_d0.sort.rmdup.rmblackls.rmchr.norm.bw'
+low_bw  <- '/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D14_Low_CD8_d0.sort.rmdup.rmblackls.rmchr.norm.bw'
+
+HLA_DRA <- get_peaks(6, 32435305, 32449627, high_bw,  low_bw, filter_genes = c('HLA-DRA'))
+CIITA   <- get_peaks(16, 10865209, 10942562, high_bw,  low_bw, filter_genes = c('CIITA'))
+TNFRSF9 <- get_peaks(1, 7901385, 7955324, high_bw,  low_bw, filter_genes = c('TNFRSF9'))
+MAP3K8  <- get_peaks(10, 30388299, 30507554, high_bw,  low_bw, filter_genes = c('MAP3K8'))
+BATF3   <- get_peaks(1, 212662788, 212723568, high_bw,  low_bw, filter_genes = c('BATF3'))
+TNFSF4  <- get_peaks(1, 173100132, 173366893, high_bw,  low_bw, filter_genes = c('TNFSF4'))
+
+
+# CHR <- 16
+# START<- 10865209
+# END <- 10942562
+# HIGH <- '/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D14_High_CD8_d0.sort.rmdup.rmblackls.rmchr.norm.bw'
+# LOW <- '/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D14_Low_CD8_d0.sort.rmdup.rmblackls.rmchr.norm.bw'
+
+# file.remove(CIITA)
