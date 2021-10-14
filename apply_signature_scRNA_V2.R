@@ -1,3 +1,4 @@
+
 library(ggplot2)
 library(Seurat)
 ##########################
@@ -153,6 +154,18 @@ ncol=2)
 dev.off()
 
 
+pdf('./Plots/Signature_HIGH_TEST_cd8.pdf')
+
+plotter_cd8 <- results_CD8[, c('High_pondered_bin', 'Sample')]
+plotter_cd8 <- t(table(plotter_cd8$High_pondered_bin, plotter_cd8$Sample))
+plotter_cd8 <- as.data.frame(t(apply(plotter_cd8 , 1, FUN=function(x) x/sum(x)*100)))
+plotter_cd8$Sample <- rownames(plotter_cd8)
+plotter_cd8 <- merge(plotter_cd8, metadata, by='Sample')
+plotter_cd8 <- reshape2::melt(plotter_cd8)
+plotter_cd8$variable <- factor(plotter_cd8$variable, levels=c('Low', 'High'))
+    ggplot(plotter_cd8, aes(x=variable, y=value, fill=variable)) + geom_boxplot() + scale_fill_manual(values = c('#DBBE78', '#7F7F7F'))+ scale_alpha_manual(values=c(0.8)) + theme_classic() + facet_wrap(~OS) + ggtitle('DENG single cell data') + theme(legend.position='none') + ggsignif::geom_signif(comparisons = list(c("High", "Low")), map_signif_level = TRUE, vjust=0.5) + ggprism::theme_prism() + labs(y='Cell percentage')
+dev.off()
+
 
 pdf('./Plots/Signature_SC_OnlyCar_CD4.pdf')
     plotter_cd4 <- table(results_CD4$Sample, results_CD4$Overall_score)
@@ -210,10 +223,21 @@ annotation_percentage$Sample <- 'CD4'
 annotation_percentage$CD <- 'CD4'
 
 ggplot(car_exp_level, aes(x = High_pondered, y = CAR_Exp, group=Sample, color=CD)) + geom_point(size= 0.8, alpha =0.6) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + theme_bw() + geom_vline(xintercept = 0, color = "red") + ggtitle('CD4+CD8')+ facet_wrap(~Sample_OS, nrow=6) + geom_text(x = 100, y = 3.5, aes(label = Hig_percent), data = annotation_percentage)#+ geom_rug(aes(color=CD), outside = TRUE)
-
 ggplot(car_exp_level, aes(x = Overall_score, y = CAR_Exp, group=Sample, color=CD)) + geom_point(size= 0.8, alpha =0.6) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + theme_bw()  + ggtitle('CD4+CD8')+ facet_wrap(~Sample_OS, nrow=6)
-
 ggplot(car_exp_level, aes(x = Overall_score, y = CAR_Exp, group=Sample, color=CD)) + geom_point(size= 0.8, alpha =0.6) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + theme_bw() + ggtitle('CD4+CD8')+ facet_wrap(~Sample_OS, nrow=6)
+dev.off()
+
+
+pdf('./Plots/DENG_results_signature.pdf')
+annotation_percentage <- as.data.frame.matrix(table(car_exp_level$Sample_OS, car_exp_level$High_pondered >=0))
+annotation_percentage <- as.data.frame.matrix(t(apply(annotation_percentage, 1, FUN=function(x) x/sum(x)*100)))
+annotation_percentage$Sample_OS <- rownames(annotation_percentage)
+annotation_percentage$Hig_percent <- signif(annotation_percentage[, 'TRUE'], digits=3)
+annotation_percentage$Sample <- 'CD4'
+annotation_percentage$CD <- 'CD4'
+
+ggplot(car_exp_level, aes(x = High_pondered, y = CAR_Exp, group=Sample, color=CD)) + geom_point(size= 0.8, alpha =0.6) + scale_color_manual(values = c('#3C77AF', '#8E221A')) + theme_bw() + geom_vline(xintercept = 0, color = "red") + ggtitle('CD4+CD8')+ facet_wrap(~Sample_OS, nrow=6) + geom_text(x = 100, y = 3.5, aes(label = Hig_percent), data = annotation_percentage)#+ geom_rug(aes(color=CD), outside = TRUE)
+ggplot(car_exp_level, aes(x = OS, y= High_pondered, fill=OS)) + geom_boxplot() + scale_fill_manual(values = c('#DBBE78', '#7F7F7F'))+ scale_alpha_manual(values=c(0.8)) + theme_classic() + facet_wrap(~CD)+ theme(legend.position='none')
 dev.off()
 
 

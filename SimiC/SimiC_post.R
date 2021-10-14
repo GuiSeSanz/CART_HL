@@ -83,6 +83,7 @@ for(phenotype in phenotypes){
     SimiC_weights_df <- rbind(SimiC_weights_df, tmp)
 }
 
+Paula_list <- c('NR4A1', 'BATF', 'ARID5A', 'RFX5', 'SATB1', 'ATF5', 'NR4A1', 'ZBTB7B', 'EED' )
 data_2_nets <- SimiC_weights_df[SimiC_weights_df$driver %in% c('NR4A1', 'BATF', 'ARID5A', 'RFX5', 'SATB1', 'ATF5', 'NR4A1', 'ZBTB7B', 'EED' ) & SimiC_weights_df$value != 0, c('.id', 'driver', 'target', 'value')]
 write.table(data_2_nets, './Data/data_2_nets_V2.tsv', sep='\t', row.names=FALSE, quote=FALSE)
 
@@ -168,7 +169,7 @@ for(i in seq_along(phenotypes)){
 
 # set the phenotype and cluster per TF
 annotations <- annotations[, c('.id', 'cluster_id', 'cell_id')]
-Idents(seurat_data) <- seurat_data$TimePoint
+# Idents(seurat_data) <- seurat_data$TimePoint
 AUCs_by_state<-list()
 state_specific_AUCs<-NULL
 for(phenotype in phenotypes){
@@ -214,18 +215,18 @@ clusters_2_keep <- as.data.frame.matrix(with(df_auc, table(cluster_id, .id)))
 clusters_2_keep$cluster_id <- rownames(clusters_2_keep)
 clusters_2_keep <- clusters_2_keep[rowSums(clusters_2_keep > 10) == ncol(clusters_2_keep), 'cluster_id']
 #Modify to keep only some interesting and cell-populated clusters
-clusters_2_keep <- c("C17.CD4 Activated", "C6.CD4 Activated", "C4.CD4 Memory", "C0.CD4 Memory", 'C9.CD8 Cytotoxic (late)', "C8.CD8 Cytotoxic", "C3.CD8 Memory", 'C1.CD4 Th2 helper', "C12.CD4 Th2 helper")
+clusters_2_keep <- c( "C3.CD8 Memory","C4.CD4 Memory", "C6.CD4 Activated","C8.CD8 Cytotoxic",'C9.CD8 Cytotoxic (late)', "C12.CD4 Th2 helper", "C17.CD4 Activated")
 df_auc_common <- df_auc[df_auc$cluster_id %in% clusters_2_keep, ]
-df_auc_common$cluster_id  <- as.character(df_auc_common$cluster_id )
-df_auc_common[df_auc_common$cluster_id == "C17.CD4 Activated", 'cluster_id'] <- 'CD4 Activated'
-df_auc_common[df_auc_common$cluster_id == "C6.CD4 Activated", 'cluster_id'] <- 'CD4 Activated'
-df_auc_common[df_auc_common$cluster_id == "C4.CD4 Memory", 'cluster_id'] <- 'CD4 Memory'
-df_auc_common[df_auc_common$cluster_id == "C0.CD4 Memory", 'cluster_id'] <- 'CD4 Memory'
-df_auc_common[df_auc_common$cluster_id == "C9.CD8 Cytotoxic (late)", 'cluster_id'] <- 'CD8 Cytotoxic (late)'
-df_auc_common[df_auc_common$cluster_id == "C8.CD8 Cytotoxic", 'cluster_id'] <- 'CD8 Cytotoxic'
-df_auc_common[df_auc_common$cluster_id == "C3.CD8 Memory", 'cluster_id'] <- 'CD8 Memory'
-df_auc_common[df_auc_common$cluster_id == "C1.CD4 Th2 helper", 'cluster_id'] <- 'CD4 Th2 helper'
-df_auc_common[df_auc_common$cluster_id == "C12.CD4 Th2 helper", 'cluster_id'] <- 'CD4 Th2 helper'
+# df_auc_common$cluster_id  <- as.character(df_auc_common$cluster_id )
+# df_auc_common[df_auc_common$cluster_id == "C17.CD4 Activated", 'cluster_id'] <- 'CD4 Activated'
+# df_auc_common[df_auc_common$cluster_id == "C6.CD4 Activated", 'cluster_id'] <- 'CD4 Activated'
+# df_auc_common[df_auc_common$cluster_id == "C4.CD4 Memory", 'cluster_id'] <- 'CD4 Memory'
+# df_auc_common[df_auc_common$cluster_id == "C0.CD4 Memory", 'cluster_id'] <- 'CD4 Memory'
+# df_auc_common[df_auc_common$cluster_id == "C9.CD8 Cytotoxic (late)", 'cluster_id'] <- 'CD8 Cytotoxic (late)'
+# df_auc_common[df_auc_common$cluster_id == "C8.CD8 Cytotoxic", 'cluster_id'] <- 'CD8 Cytotoxic'
+# df_auc_common[df_auc_common$cluster_id == "C3.CD8 Memory", 'cluster_id'] <- 'CD8 Memory'
+# df_auc_common[df_auc_common$cluster_id == "C1.CD4 Th2 helper", 'cluster_id'] <- 'CD4 Th2 helper'
+# df_auc_common[df_auc_common$cluster_id == "C12.CD4 Th2 helper", 'cluster_id'] <- 'CD4 Th2 helper'
 
 # calculate the regulation dissimilarity by the total variation score
 MinMax_clust<-NULL
@@ -275,13 +276,13 @@ pb <- progress::progress_bar$new(total=length(clusters_2_keep))
 for (clust in sort(unique(df_auc$cluster_id))){
   show(clust)
   plotter2 <- df_auc[df_auc$cluster_id == clust,]
-  pdf(paste0(plot_root_dir ,file_idx,'Simic_Auc_Clsuter_',clust,'Reduced.pdf'), width = 15, onefile = TRUE)
+  pdf(paste0(plot_root_dir ,file_idx,'Simic_Auc_Cluster_',clust,'.pdf'), width = 15, onefile = TRUE)
   plot_counter <- 1
   for (tf in unique(plotter2$driver)){
     assign( paste0('p', plot_counter), 
     ggplot(plotter2[plotter2$driver ==tf,], aes(x=value, fill=.id)) + 
     geom_density(alpha = 0.6, adjust = 1/8) + theme_classic() + 
-    scale_fill_iwanthue() +
+    scale_fill_manual( values=c('#30A3CC', '#bfbfbf')) +
     theme(legend.position = 'top')+ geom_rug() + 
     ggtitle(paste0(tf, '   ', MinMax_clust[rownames(MinMax_clust) == tf, clust])) )
     if(plot_counter == 2){
@@ -297,12 +298,16 @@ for (clust in sort(unique(df_auc$cluster_id))){
 }
 
 
+  saveRDS(df_auc, './Data/SimiC_aucs.rds')
+
+
 clust_order_asc<-names(sort(apply(MinMax_clust, 2, mean)))
 MinMax_clust<-MinMax_clust[,clust_order_asc]
 MinMax_df <- as.data.frame(MinMax_clust)
 MinMax_df$driver <- rownames(MinMax_df)
 MinMax_df <- melt(MinMax_df,variable.name = "cluster_id")
 MinMax_clust <- MinMax_clust[!rownames(MinMax_clust) %in% TF_2_remove,]
+saveRDS(MinMax_clust, './Data/MinMax_clust.rds')
 
 
 # Plot the heatmap of the regulatory dissimilarity score
