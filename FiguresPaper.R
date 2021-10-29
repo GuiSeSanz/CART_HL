@@ -547,6 +547,20 @@ def_getHeatmap_signature <- function(dataset, title){
 }
 
 
+get_plot_signature <- function(signature, data, cluster, signif=TRUE){
+    genes_sign <- unique(as.character(read.table(paste0(signatures_path, '/', signature))$V1))
+    tmp <- data[, colnames(data) %in% genes_sign]
+    tmp$Signature_Score <- rowSums(tmp)
+    tmp$cell_id <- sub('-','.',rownames(tmp))
+    tmp <- merge(tmp, coords, by='cell_id')
+    tmp <- tmp[tmp$Cluster == cluster,]
+    p <- ggplot(tmp, aes(y=Signature_Score, x=BinScore, fill=BinScore)) + geom_boxplot(alpha = 0.8) + scale_fill_manual(values=c('High'='#30A3CC', 'Low'='#d3d3d3'))+   ggprism::theme_prism()+ labs(y= 'Signature Score') + theme(legend.position='none', axis.title.x = element_blank(), axis.title.y = element_text(size=8),plot.title = element_text(hjust = 0), plot.subtitle=element_text(hjust = 0)) 
+    if (signif){
+        p <- p + ggsignif::geom_signif(comparisons = list(c("High", "Low")), map_signif_level = TRUE, vjust=0.5)
+    }
+    return(p)
+}
+
 
 
 RdWhBl <- colorRampPalette(colors = c("blue", "white", "red")) (100)
@@ -918,7 +932,7 @@ VlnPlot(rds_unfiltered, features = c("CD8A", 'CD4', 'CD3D'),
     pt.size = 0, ncol = 3, cols = color_list_all_stripped[0:length(unique(coords_unfiltered$Cluster))])
 dev.off()
 
-pdf('./Plots/FigureS5.pdf')
+pdf('./Plots/FigureS5.pdf',height=12, width=10)
     coords_unfiltered <- as.data.frame(rds_unfiltered@reductions$umap@cell.embeddings)
     coords_unfiltered$cell_id <- sub('-', '.',rownames(coords_unfiltered))
     coords_unfiltered$Cluster <- rds_unfiltered$integrated_snn_res.0.8
@@ -952,26 +966,40 @@ pdf('./Plots/FigureS5.pdf')
     contribution2 <- setNames(reshape2::melt(contribution2), c('Cluster', 'Donor', 'value'))
     contribution <- ggplot(contribution, aes(x= Cluster, fill=Donor))+  geom_bar(position="fill", colour="black") + theme_classic() + labs(title = "Contribution by donor", x= 'Cluster', y = '% of cells') + scale_fill_brewer(palette="RdBu")  #scale_fill_manual(values=c('#585123', '#f2a65a', '#772f1a'))
     contribution2 <- ggplot(contribution2, aes(x= Cluster, y=value, fill=Donor))+  geom_bar(position="fill", stat='identity', colour="black") + theme_classic() + labs(title = "Contribution by donor", x= 'Cluster', y = '% of cells') + scale_fill_brewer(palette="RdBu")+ theme(axis.text=element_text(size=6))  #scale_fill_manual(values=c('#585123', '#f2a65a', '#772f1a'))
-
+    cluster_20_CD8A <- setNames(as.data.frame(rds_unfiltered@assays$RNA@data[c('CD8A'),]), 'Value')
+    cluster_20_CD8A <- merge(cluster_20_CD8A, clusters_tmp, by.x=0, by.y='cell_id')
+    cluster_20_CD8A <- get_violin(cluster_20_CD8A, 'CD8A', cluster_color = color_list_all_stripped) + ylab('Expression Level')
+    cluster_20_CD4 <- setNames(as.data.frame(rds_unfiltered@assays$RNA@data[c('CD4'),]), 'Value') 
+    cluster_20_CD4 <- merge(cluster_20_CD4, clusters_tmp, by.x=0, by.y='cell_id')
+    cluster_20_CD4 <- get_violin(cluster_20_CD4, 'CD4', cluster_color = color_list_all_stripped) + theme(axis.title.y=element_blank())
+    cluster_20_CD3D <- setNames(as.data.frame(rds_unfiltered@assays$RNA@data[c('CD3D'),]), 'Value')
+    cluster_20_CD3D <- merge(cluster_20_CD3D, clusters_tmp, by.x=0, by.y='cell_id')
+    cluster_20_CD3D <- get_violin(cluster_20_CD3D, 'CD3D', cluster_color = color_list_all_stripped)+ theme(axis.title.y=element_blank())
     tmp <- setNames(as.data.frame(rds_unfiltered$donor), 'Donor')
     tmp$cell_id <- sub('-', '.', rownames(tmp))
     tmp <- merge(coords, tmp, by='cell_id')
-    cowplot::plot_grid(   
-        cowplot::plot_grid(
-            ggplot(coords_unfiltered, aes(x=UMAP_1, y=UMAP_2, color= Cluster)) + geom_point(alpha=0.9, size = 0.5) + scale_color_manual(values=color_list_all_stripped[0:length(unique(coords_unfiltered$Cluster))]) + theme_void() + theme(legend.position='right', plot.title = element_text(hjust = 0.5)) + ggtitle('Populations') + guides(color = guide_legend(override.aes = list(size=3, alpha =1))), 
-            # cowplot::plot_grid(
-            #     ggplot(tmp, aes(x=UMAP_1, y=UMAP_2, color= Cluster)) + geom_point(alpha=0.9, size = 0.5) + scale_color_manual(values=color_list_populations) + theme_void() + theme(legend.position='none', plot.title = element_text(hjust = 0.5)) + ggtitle('Populations by donor') + guides(color = guide_legend(override.aes = list(size=5)))  + facet_wrap(~Donor)
-            # ), 
-            # contribution,
-            contribution2,
-            nrow=2, rel_heights=c(2,1)
-        ),
-        cowplot::plot_grid(
-            g2mScore,
-            sScore,
-            mitoRatio,
-            nrow=3)
-    , ncol=2, rel_widths=c(4,3))
+    cowplot::plot_grid(  
+        cowplot::plot_grid(   
+            cowplot::plot_grid(
+                ggplot(coords_unfiltered, aes(x=UMAP_1, y=UMAP_2, color= Cluster)) + geom_point(alpha=0.9, size = 0.5) + scale_color_manual(values=color_list_all_stripped[0:length(unique(coords_unfiltered$Cluster))]) + theme_void() + theme(legend.position='right', plot.title = element_text(hjust = 0.5)) + ggtitle('Populations') + guides(color = guide_legend(override.aes = list(size=3, alpha =1))), 
+                # cowplot::plot_grid(
+                #     ggplot(tmp, aes(x=UMAP_1, y=UMAP_2, color= Cluster)) + geom_point(alpha=0.9, size = 0.5) + scale_color_manual(values=color_list_populations) + theme_void() + theme(legend.position='none', plot.title = element_text(hjust = 0.5)) + ggtitle('Populations by donor') + guides(color = guide_legend(override.aes = list(size=5)))  + facet_wrap(~Donor)
+                # ), 
+                # contribution,
+                contribution2,
+                nrow=2, rel_heights=c(2,1)
+            ),
+            cowplot::plot_grid(
+                g2mScore,
+                sScore,
+                mitoRatio,
+                nrow=3)
+        , ncol=2, rel_widths=c(4,3)),
+        cowplot::plot_grid( cluster_20_CD8A,
+                            cluster_20_CD4,
+                            cluster_20_CD3D,        
+                        ncol=3),
+    nrow=2, rel_heights=c(3,1))
         
 dev.off()
 
@@ -1033,64 +1061,50 @@ htmap <- pheatmap::pheatmap(test[,c(col_order$cell_id) ],scale='none', fontsize=
 signatures_path <- '/home/sevastopol/data/gserranos/CART_HL/Data/signature/OtherSignatures'
 signatures <- list.files(signatures_path)
 
-get_plot_signature <- function(signature, data, cluster, signif=TRUE){
-    genes_sign <- unique(as.character(read.table(paste0(signatures_path, '/', signature))$V1))
-    tmp <- data[, colnames(data) %in% genes_sign]
-    tmp$Signature_Score <- rowSums(tmp)
-    tmp$cell_id <- sub('-','.',rownames(tmp))
-    tmp <- merge(tmp, coords, by='cell_id')
-    tmp <- tmp[tmp$Cluster == cluster,]
-    p <- ggplot(tmp, aes(y=Signature_Score, x=BinScore, fill=BinScore)) + geom_boxplot(alpha = 0.8) + scale_fill_manual(values=c('High'='#30A3CC', 'Low'='#d3d3d3'))+   ggprism::theme_prism()+ labs(y= 'Signature Score') + theme(legend.position='none', axis.title.x = element_blank(), axis.title.y = element_text(size=8),plot.title = element_text(hjust = 0), plot.subtitle=element_text(hjust = 0)) 
-    if (signif){
-        p <- p + ggsignif::geom_signif(comparisons = list(c("High", "Low")), map_signif_level = TRUE, vjust=0.5)
-    }
-    return(p)
-}
-
 pdf('./Plots/Figure4.pdf', width=7.5, height=10)
-HighAndLow = FALSE
-if(HighAndLow){
-    clusters_tmp  <- setNames(as.data.frame(rds_test$seurat_clusters) , 'Cluster')
-    clusters_tmp$cell_id <- sub('-','.',rownames(clusters_tmp))
-    composition <- merge(coords[, c('cell_id', 'BinScore')], clusters_tmp, by='cell_id')
-    composition <- ggplot(composition, aes(x= Cluster, fill=BinScore))+  geom_bar(position="fill") + ggprism::theme_prism() + labs(title = "High CART distribution", x= 'Cluster', y = '% of cells') + scale_fill_manual(values=c('#30A3CC', '#FCB357')) 
-}else{
-    clusters_tmp  <- setNames(as.data.frame(rds_test$seurat_clusters) , 'Cluster')
-    clusters_tmp$cell_id <- sub('-','.',rownames(clusters_tmp))
-    composition <- merge(coords[, c('cell_id', 'BinScore')], clusters_tmp, by='cell_id')
-    composition$Cluster <- as.character(composition$Cluster)
-    composition <- table(composition$Cluster, composition$BinScore)
-    composition <- as.data.frame.matrix(composition)
-    composition$High_prop <- apply(composition, 1, FUN=function(x) (x[1]/sum(x))*100 )
-    composition$Cluster <- factor(rownames(composition) , levels=c(sort(as.numeric(rownames(composition)))))
-    composition <- ggplot(composition, aes(x=Cluster, y=High_prop))+  geom_bar(stat='identity', fill = "#30A3CC") + ggprism::theme_prism() + labs(title = "High CART distribution", x= 'Cluster', y = '% of cells') + theme(panel.grid.major = element_line(colour="#f0f0f0"))
-}
-cowplot::plot_grid(
+    HighAndLow = FALSE
+    if(HighAndLow){
+        clusters_tmp  <- setNames(as.data.frame(rds_test$seurat_clusters) , 'Cluster')
+        clusters_tmp$cell_id <- sub('-','.',rownames(clusters_tmp))
+        composition <- merge(coords[, c('cell_id', 'BinScore')], clusters_tmp, by='cell_id')
+        composition <- ggplot(composition, aes(x= Cluster, fill=BinScore))+  geom_bar(position="fill") + ggprism::theme_prism() + labs(title = "High CART distribution", x= 'Cluster', y = '% of cells') + scale_fill_manual(values=c('#30A3CC', '#FCB357')) 
+    }else{
+        clusters_tmp  <- setNames(as.data.frame(rds_test$seurat_clusters) , 'Cluster')
+        clusters_tmp$cell_id <- sub('-','.',rownames(clusters_tmp))
+        composition <- merge(coords[, c('cell_id', 'BinScore')], clusters_tmp, by='cell_id')
+        composition$Cluster <- as.character(composition$Cluster)
+        composition <- table(composition$Cluster, composition$BinScore)
+        composition <- as.data.frame.matrix(composition)
+        composition$High_prop <- apply(composition, 1, FUN=function(x) (x[1]/sum(x))*100 )
+        composition$Cluster <- factor(rownames(composition) , levels=c(sort(as.numeric(rownames(composition)))))
+        composition <- ggplot(composition, aes(x=Cluster, y=High_prop))+  geom_bar(stat='identity', fill = "#30A3CC") + ggprism::theme_prism() + labs(title = "High CART distribution", x= 'Cluster', y = '% of cells') + theme(panel.grid.major = element_line(colour="#f0f0f0"))
+    }
     cowplot::plot_grid(
-        ggplot() + 
-        geom_point(coords[coords$BinScore == 'Low',], mapping = aes(x=UMAP_1, y=UMAP_2, color= BinScore, shape = CD),alpha=0.6) +
-        geom_point(coords[coords$BinScore == 'High',], mapping = aes(x=UMAP_1, y=UMAP_2, color= BinScore, shape = CD),alpha=0.8) + 
-        scale_color_manual(values=c('High'='#30A3CC', 'Low'='#d3d3d3'))  + ggprism::theme_prism()+ labs(subtitle = 'High-low distribution') + 
-        guides(fill = guide_legend(override.aes = list(size=3, alpha = 1))) + labs(x = "UMAP 1", y = 'UMAP 2') + 
-        theme(legend.position='bottom', plot.title = element_text(hjust = 0.5, size = 10), axis.text=element_blank(), axis.ticks=element_blank(), legend.spacing.x = unit(0.1, 'cm')) ,
-        composition, 
-    ncol=2),
-    cowplot::plot_grid(
+        cowplot::plot_grid(
+            ggplot() + 
+            geom_point(coords[coords$BinScore == 'Low',], mapping = aes(x=UMAP_1, y=UMAP_2, color= BinScore, shape = CD),alpha=0.6) +
+            geom_point(coords[coords$BinScore == 'High',], mapping = aes(x=UMAP_1, y=UMAP_2, color= BinScore, shape = CD),alpha=0.8) + 
+            scale_color_manual(values=c('High'='#30A3CC', 'Low'='#d3d3d3'))  + ggprism::theme_prism()+ labs(subtitle = 'High-low distribution') + 
+            guides(fill = guide_legend(override.aes = list(size=3, alpha = 1))) + labs(x = "UMAP 1", y = 'UMAP 2') + 
+            theme(legend.position='bottom', plot.title = element_text(hjust = 0.5, size = 10), axis.text=element_blank(), axis.ticks=element_blank(), legend.spacing.x = unit(0.1, 'cm')) ,
+            composition, 
+        ncol=2),
         cowplot::plot_grid(
             cowplot::plot_grid(
-                get_expression_signature("Genes_Activation.txt", normData, coords , 1.2, split_HL=TRUE) + theme(strip.text = element_text(size=8)),
-                get_expression_signature("Genes_Tonic.txt", normData, coords , 1.2, split_HL=TRUE)+ theme(strip.text = element_text(size=8)),
-            ncol=1),
-            cowplot::get_legend(get_expression_signature("Genes_Activation.txt", normData, coords , 1.2)+theme(legend.position='bottom')+ guides(color = guide_colourbar(barheight = 0.5))),
-        ncol=1, rel_heights=c(2, 0.1)),
-        cowplot::plot_grid(
-            get_plot_signature("Genes_Activation.txt", normData, "C6.CD4 Activated") + labs(title = "C6.CD4 Activated", subtitle = "Activation genes") + theme(plot.title = element_text(size = 8),plot.subtitle = element_text(size = 6)),
-            get_plot_signature("Genes_Activation.txt", normData, "C17.CD4 Activated", FALSE)+ labs(title = "C17.CD4 Activated", subtitle = "Activation genes")+ theme(plot.title = element_text(size = 8),plot.subtitle = element_text(size = 6)),
-            get_plot_signature("Genes_Activation.txt", normData, "C9.CD8 Cytotoxic (late)")+ labs(title = "C9.CD8 Cytotoxic (late)", subtitle = "Activation genes")+ theme(plot.title = element_text(size = 8),plot.subtitle = element_text(size = 6)),
-            get_plot_signature("Genes_Tonic.txt", normData, "C9.CD8 Cytotoxic (late)")+ labs(title = "C9.CD8 Cytotoxic (late)", subtitle = "Tonic signal")+ theme(plot.title = element_text(size = 8),plot.subtitle = element_text(size = 6)),
-        ncol=2),
-    ncol=2)    
-, nrow=2, rel_heights=c(2,3))
+                cowplot::plot_grid(
+                    get_expression_signature("Genes_Activation.txt", normData, coords , 1.2, split_HL=TRUE) + theme(strip.text = element_text(size=8)),
+                    get_expression_signature("Genes_Tonic.txt", normData, coords , 1.2, split_HL=TRUE)+ theme(strip.text = element_text(size=8)),
+                ncol=1),
+                cowplot::get_legend(get_expression_signature("Genes_Activation.txt", normData, coords , 1.2)+theme(legend.position='bottom')+ guides(color = guide_colourbar(barheight = 0.5))),
+            ncol=1, rel_heights=c(2, 0.1)),
+            cowplot::plot_grid(
+                get_plot_signature("Genes_Activation.txt", normData, "C6.CD4 Activated") + labs(title = "C6.CD4 Activated", subtitle = "Activation genes") + theme(plot.title = element_text(size = 8),plot.subtitle = element_text(size = 6)),
+                get_plot_signature("Genes_Activation.txt", normData, "C17.CD4 Activated", FALSE)+ labs(title = "C17.CD4 Activated", subtitle = "Activation genes")+ theme(plot.title = element_text(size = 8),plot.subtitle = element_text(size = 6)),
+                get_plot_signature("Genes_Activation.txt", normData, "C9.CD8 Cytotoxic (late)")+ labs(title = "C9.CD8 Cytotoxic (late)", subtitle = "Activation genes")+ theme(plot.title = element_text(size = 8),plot.subtitle = element_text(size = 6)),
+                get_plot_signature("Genes_Tonic.txt", normData, "C9.CD8 Cytotoxic (late)")+ labs(title = "C9.CD8 Cytotoxic (late)", subtitle = "Tonic signal")+ theme(plot.title = element_text(size = 8),plot.subtitle = element_text(size = 6)),
+            ncol=2),
+        ncol=2)    
+    , nrow=2, rel_heights=c(2,3))
 dev.off()
 
 
@@ -1143,14 +1157,14 @@ cowplot::plot_grid(
 nrow=2)
 dev.off()
 
-pdf('./Plots/Test.pdf')
-ggplot() + 
-geom_point(coords[coords$BinScore == 'Low',], mapping = aes(x=UMAP_1, y=UMAP_2, color= BinScore, shape = CD),alpha=0.6) +
-geom_point(coords[coords$BinScore == 'High',], mapping = aes(x=UMAP_1, y=UMAP_2, color= BinScore, shape = CD),alpha=0.8) + 
-scale_color_manual(values=c('High'='#30A3CC', 'Low'='#d3d3d3'))  + theme_void()+ labs(subtitle = 'High-low distribution') + 
-guides(fill = guide_legend(override.aes = list(size=3, alpha = 1))) + 
-theme(legend.position='bottom', plot.title = element_text(hjust = 0.5, size = 10))
-dev.off()
+# pdf('./Plots/Test.pdf')
+# ggplot() + 
+# geom_point(coords[coords$BinScore == 'Low',], mapping = aes(x=UMAP_1, y=UMAP_2, color= BinScore, shape = CD),alpha=0.6) +
+# geom_point(coords[coords$BinScore == 'High',], mapping = aes(x=UMAP_1, y=UMAP_2, color= BinScore, shape = CD),alpha=0.8) + 
+# scale_color_manual(values=c('High'='#30A3CC', 'Low'='#d3d3d3'))  + theme_void()+ labs(subtitle = 'High-low distribution') + 
+# guides(fill = guide_legend(override.aes = list(size=3, alpha = 1))) + 
+# theme(legend.position='bottom', plot.title = element_text(hjust = 0.5, size = 10))
+# dev.off()
 
 normalized_counts_CD4 <- get_normalized_bulk("/home/sevastopol/data/mcallejac/RNA_HighLow_ALL/results/HL_CD4.RData")
 normalized_counts_CD8 <- get_normalized_bulk("/home/sevastopol/data/mcallejac/RNA_HighLow_ALL/results/HL_CD8.RData")

@@ -163,9 +163,14 @@ plotter_cd8$Sample <- rownames(plotter_cd8)
 plotter_cd8 <- merge(plotter_cd8, metadata, by='Sample')
 plotter_cd8 <- reshape2::melt(plotter_cd8)
 plotter_cd8$variable <- factor(plotter_cd8$variable, levels=c('Low', 'High'))
-    ggplot(plotter_cd8, aes(x=variable, y=value, fill=variable)) + geom_boxplot() + scale_fill_manual(values = c('#DBBE78', '#7F7F7F'))+ scale_alpha_manual(values=c(0.8)) + theme_classic() + facet_wrap(~OS) + ggtitle('DENG single cell data') + theme(legend.position='none') + ggsignif::geom_signif(comparisons = list(c("High", "Low")), map_signif_level = TRUE, vjust=0.5) + ggprism::theme_prism() + labs(y='Cell percentage')
-dev.off()
 
+ggplot(plotter_cd8, aes(x=variable, y=value, fill=variable)) + geom_boxplot(alpha=0.8) + scale_fill_manual(values = c('#DBBE78', '#7F7F7F'))+ scale_alpha_manual(values=c(0.8)) + theme_classic() + facet_wrap(~OS) + ggtitle('DENG single cell data') + theme(legend.position='none') + ggsignif::geom_signif(comparisons = list(c("High", "Low")), map_signif_level = TRUE, vjust=0.5) + ggprism::theme_prism() + labs(y='Cell percentage')
+
+ggplot(plotter_cd8[plotter_cd8$variable=='High',], aes(x=OS, y=value, fill=variable)) + geom_boxplot(alpha=0.8) + scale_fill_manual(values = c('#30A3CC'))+ scale_alpha_manual(values=c(0.8)) + theme_classic()  + ggtitle('DENG single cell data') + theme(legend.position='none') + ggsignif::geom_signif(comparisons = list(c("CR", "NR")), map_signif_level = TRUE, vjust=0.5) + ggprism::theme_prism() + labs(y='percentage of "high" cells') + ggtitle('All samples')
+
+ggplot(plotter_cd8[plotter_cd8$variable=='High' & plotter_cd8$Sample != 'ac14',], aes(x=OS, y=value, fill=variable)) + geom_boxplot(alpha=0.8) + scale_fill_manual(values = c('#30A3CC'))+ scale_alpha_manual(values=c(0.8)) + theme_classic()  + ggtitle('DENG single cell data') + theme(legend.position='none') + ggsignif::geom_signif(comparisons = list(c("CR", "NR")), map_signif_level = TRUE, vjust=0.5) + ggprism::theme_prism() + labs(y='percentage of "high" cells')+ ggtitle('removing the CR higher sample')
+
+dev.off()
 
 pdf('./Plots/Signature_SC_OnlyCar_CD4.pdf')
     plotter_cd4 <- table(results_CD4$Sample, results_CD4$Overall_score)
