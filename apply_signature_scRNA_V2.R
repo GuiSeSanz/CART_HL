@@ -130,6 +130,8 @@ for (folder in folders){
 
 results_CD4 <- merge(results_CD4, metadata, by='Sample') 
 results_CD8 <- merge(results_CD8, metadata, by='Sample') 
+DENG_results <- list(results_CD4=results_CD4, results_CD8=results_CD8)
+saveRDS(DENG_results , './Data/DENG_results.rds')
 
 pdf('./Plots/Signature_HIGH_TEST.pdf')
 plotter_cd4 <- results_CD4[, c('High_pondered_bin', 'Sample')]
