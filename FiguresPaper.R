@@ -269,12 +269,12 @@ get_normalized_bulk <- function(path){
     return(normalized_counts)
 }
 
-get_heatmap <- function(data, ann_legend= TRUE){
+get_heatmap <- function(data, ann_legend= TRUE, legend=TRUE){
     ann_color = list(Density = c(High='#7F7F7F', Low='#DBBE78'))
     annotation <- setNames(as.data.frame(ifelse(grepl('High',colnames(data)), 'High', 'Low')), 'Density')
     rownames(annotation) <- colnames(data)
     new_col_order <- c(base::grep('Low', colnames(data), value=TRUE), base::grep('High', colnames(data), value=TRUE))
-    htmap <- pheatmap::pheatmap(data[, new_col_order], scale='row', fontsize=5, angle_col =45, show_rownames=FALSE, show_colnames = FALSE, treeheight_row = 5, treeheight_col = 5, cluster_col = FALSE, legend=TRUE, silent = TRUE, color = viridis::viridis(50), annotation_col=annotation, annotation_color = ann_color, annotation_legend = ann_legend, fontsize_row=2) #cellheight = 0.5, cellwidth = 8
+    htmap <- ComplexHeatmap::pheatmap(data[, new_col_order], scale='row', fontsize=5, angle_col =45, show_rownames=FALSE, show_colnames = FALSE, treeheight_row = 5, treeheight_col = 5, cluster_col = FALSE, legend=legend, silent = TRUE, color = viridis::viridis(50), annotation_col=annotation, annotation_color = ann_color, annotation_legend = ann_legend, fontsize_row=2) #cellheight = 0.5, cellwidth = 8
     return(htmap)
 }
 
@@ -296,7 +296,7 @@ get_correlation <- function(data, name, y_just = log10(1e5)){ # y_just = 3500
     return(tmp)
 }
 
-get_LOO_table <- function(data){
+get_LOO_table <- function(data, ann_legend= TRUE, legend=TRUE){
     rownames(data) <- ifelse(grepl('^Control', data$Sample), 'Control', paste0('Leaved_out_',data$Sample))
     data <- data[, !colnames(data) %in% c('Sample', 'type')]
     annot_colors <- list(FACS_Level = c(High='#30A3CC', Low='#FCB357'))
@@ -305,7 +305,7 @@ get_LOO_table <- function(data){
     fontsize=5, angle_col =45, show_rownames=TRUE, show_colnames = FALSE, treeheight_row = 5, treeheight_col = 5,
     scale='none', color = colorRampPalette(rev(RColorBrewer::brewer.pal(n = 7, name ="RdYlBu")))(100), 
     annotation_col = annot, annotation_colors = annot_colors, cutree_cols = 2, display_numbers=TRUE, main='Raw score', 
-    legend=FALSE, silent=TRUE)$gtable
+    legend=legend, annotation_legend = ann_legend, silent=TRUE)$gtable
     return(tmp)
 }
 
@@ -806,111 +806,8 @@ get_geom_point <- function(gene, signif=TRUE){
     return(p)
 }
 
-# old figure
-    # pdf('./Plots/Figure2.pdf', width = 15)
-    # lgnd <- cowplot::get_legend(get_pca(pcaData_Bulk, percentVar_Bulk, 'HighLow')+ theme(legend.position='bottom'))
-    # cowplot::plot_grid(
-    #     cowplot::plot_grid(
-    #         get_pca(pcaData_Bulk, percentVar_Bulk, 'HighLow') + ggtitle('RNA-seq'), 
-    #         lgnd, 
-    #         get_pca(pcaData_atac, percentVar_atac, 'HighLow')+ ggtitle('ATAC-seq'), 
-    #     nrow=3, rel_heights=c(1,0.2,1)),
 
-    #     cowplot::plot_grid(
-    #         cowplot::plot_grid(def_getHeatmap_signature('Genes_Activation', 'Activation')$gtable, 
-    #         def_getHeatmap_signature('Genes_Tonic', 'Tonic signal')$gtable, 
-    #         def_getHeatmap_signature('Genes_Prolif', 'Proliferation')$gtable, nrow=1), 
-    #         cowplot::plot_grid( get_pie_Annot(peaks_CD8 ), get_venn(ven_list_CD8), rel_widths=c(4,2),
-    #         nrow=1), 
-    #     nrow=2, rel_heights=c(2, 1), align = "h"),
-
-    #     cowplot::plot_grid(
-    #         cowplot::plot_grid(
-    #             get_geom_point('HLA-DRA'),
-    #             get_geom_point('CD74'),
-    #             get_geom_point('TNFRSF4'),
-    #             get_geom_point('TNFRSF9'),
-    #         ncol=2),
-    #         cowplot::plot_grid(
-    #             cowplot::ggdraw() + cowplot::draw_image(magick::image_read_pdf(MCM3, density = 600)), cowplot::ggdraw() + cowplot::draw_image(magick::image_read_pdf(CTLA4, density = 600)), cowplot::ggdraw() + cowplot::draw_image(magick::image_read_pdf(HLA_DRA, density = 600))
-    #         , ncol=2), 
-    #     nrow=2, rel_heights=c(3,3)),
-    # ncol=3, rel_widths=c(1,4,3))
-    # dev.off()
-#
-# old figure 2
-    # pdf('./Plots/Figure2.pdf', width=10, height=15)
-    # lgnd <- cowplot::get_legend(get_pca(pcaData_Bulk, percentVar_Bulk, 'HighLow')+ theme(legend.position='right'))
-    # cowplot::plot_grid(
-
-    #     cowplot::plot_grid(
-    #         get_pca(pcaData_Bulk, percentVar_Bulk, 'HighLow') + ggtitle('RNA-seq'), 
-    #         get_pca(pcaData_atac, percentVar_atac, 'HighLow')+ ggtitle('ATAC-seq'), 
-    #         lgnd, 
-    #     ncol=3, rel_widths=c(1,1,0.5)),
-
-    #     cowplot::plot_grid(
-    #         def_getHeatmap_signature('Genes_Activation', 'Activation')$gtable, 
-    #         def_getHeatmap_signature('Genes_Tonic', 'Tonic signal')$gtable, 
-    #         def_getHeatmap_signature('Genes_Prolif', 'Proliferation')$gtable, 
-    #     nrow=1), 
-    #     cowplot::plot_grid(
-    #         cowplot::plot_grid(
-    #                 get_geom_point('HLA-DRA'),
-    #                 get_geom_point('CD74'),
-    #                 get_geom_point('TNFRSF4'),
-    #                 get_geom_point('TNFRSF9'),
-    #         ncol=2),
-    #         cowplot::plot_grid( get_pie_Annot(peaks_CD8 ), get_venn(ven_list_CD8), nrow=2, rel_widths=c(1, 1.5), rel_heights=c(1,1.5))
-    #     ,ncol=2),
-    #     cowplot::plot_grid(
-    #             cowplot::ggdraw() + cowplot::draw_image(magick::image_read_pdf(MCM3, density = 600)), 
-    #             cowplot::ggdraw() + cowplot::draw_image(magick::image_read_pdf(CTLA4, density = 600)), 
-    #             cowplot::ggdraw() + cowplot::draw_image(magick::image_read_pdf(HLA_DRA, density = 600))
-    #         , ncol=3),
-    # nrow=4, rel_heights=c(1.5, 3, 2, 2))
-    # dev.off()
-
-
-# old figure 3
-    # pdf('./Plots/Figure2V2.pdf', width=10, height=15)
-    # lgnd <- cowplot::get_legend(get_pca(pcaData_Bulk, percentVar_Bulk, 'HighLow')+ theme(legend.position='right'))
-    # cowplot::plot_grid(
-    #     cowplot::plot_grid(
-    #         get_pca(pcaData_Bulk, percentVar_Bulk, 'HighLow') + ggtitle('RNA-seq'), 
-    #         get_pca(pcaData_atac, percentVar_atac, 'HighLow')+ ggtitle('ATAC-seq'), 
-    #         lgnd, 
-    #     ncol=3, rel_widths=c(1,1,0.2)),
-    #     cowplot::plot_grid(
-    #         def_getHeatmap_signature('Genes_Activation', 'Activation')$gtable, 
-    #         def_getHeatmap_signature('Genes_Tonic', 'Tonic signal')$gtable,
-    #     ncol=2),
-    #     cowplot::plot_grid(
-    #         def_getHeatmap_signature('Genes_Prolif', 'Proliferation')$gtable, 
-    #         cowplot::plot_grid(
-    #                 get_geom_point('HLA-DRA'),
-    #                 get_geom_point('CD74'),
-    #                 get_geom_point('TNFRSF4'),
-    #                 get_geom_point('TNFRSF9'),
-    #         ncol=2),
-    #     ncol=2),
-    #     cowplot::plot_grid(
-    #         cowplot::plot_grid( 
-    #             get_pie_Annot(peaks_CD8 ), get_venn(ven_list_CD8), 
-    #             nrow=2, rel_widths=c(1, 1.5), rel_heights=c(1,1.5)),
-    #         cowplot::plot_grid(
-    #             cowplot::ggdraw() + cowplot::draw_image(magick::image_read_pdf(MCM3, density = 600)), 
-    #             cowplot::ggdraw() + cowplot::draw_image(magick::image_read_pdf(CTLA4, density = 600)),
-    #         nrow=2),
-    #     ncol=2),
-    # nrow=4)
-    # dev.off()
-
-
-
-#end of old figure
-
-pdf('./Plots/Figure2V3.pdf', width=10, height=15)
+pdf('./Plots/Figure2.pdf', width=10, height=15)
 lgnd <- cowplot::get_legend(get_pca(pcaData_Bulk, percentVar_Bulk, 'HighLow')+ theme(legend.position='bottom'))
 cowplot::plot_grid(
     cowplot::plot_grid(
@@ -921,7 +818,7 @@ cowplot::plot_grid(
         ncol=1, rel_heights=c(1,1,0.2)),
         def_getHeatmap_signature_OneForAll(c('Genes_Activation', 'Genes_Tonic', 'Genes_Prolif'), 
                                         c('Activation', 'Tonic signal', 'Proliferation'))$gtable,
-    ncol=2, rel_widths=c(1.5,2))
+    ncol=2, rel_widths=c(2,2))
     ,
     cowplot::plot_grid(
                     get_geom_point('HLA-DRA'),
@@ -936,12 +833,11 @@ cowplot::plot_grid(
     cowplot::plot_grid(
             cowplot::ggdraw() + cowplot::draw_image(magick::image_read_pdf(MCM3, density = 600)), 
             cowplot::ggdraw() + cowplot::draw_image(magick::image_read_pdf(CTLA4, density = 600)),
-    ncol=2)
+    ncol=2, labels=c('MCM3', 'CTLA4'), align = 'v', hjust=0, vjust= 5,label_size=12)
 ,nrow=4, rel_heights=c(3, 1, 1, 2))
 dev.off()
 
 
- 
 
 #### CD4 
 # == atac ==
@@ -1358,16 +1254,16 @@ FACs_Vs_Expr_CD4  <- get_correlation(FACs[FACs$type == 'CD4',], 'CAR_pCCL_BCMA')
 FACs_Vs_Expr_CD8  <- get_correlation(FACs[FACs$type == 'CD8',], 'CAR_pCCL_BCMA') + labs(x = 'CAR expression')
 FACs_Vs_Score_CD4 <- get_correlation(FACs[FACs$type == 'CD4',], 'High_pondered') + labs(x = 'Signature Score')
 FACs_Vs_Score_CD8 <- get_correlation(FACs[FACs$type == 'CD8',], 'High_pondered') + labs(x = 'Signature Score')
-CD4_htm <- get_heatmap(normalized_counts_CD4[rownames(normalized_counts_CD4) %in% CD4_signature_genes$sigGenes_symbol,])
-CD8_htm <- get_heatmap(normalized_counts_CD8[rownames(normalized_counts_CD8) %in% CD8_signature_genes$sigGenes_symbol,])
+CD4_htm <- get_heatmap(normalized_counts_CD4[rownames(normalized_counts_CD4) %in% CD4_signature_genes$sigGenes_symbol,], FALSE, FALSE)
+CD8_htm <- get_heatmap(normalized_counts_CD8[rownames(normalized_counts_CD8) %in% CD8_signature_genes$sigGenes_symbol,], FALSE, FALSE)
 
 Results_LOO_CD8 <- readRDS('./Data/signature/Results_LOO_CD8.rds')
 Results_LOO_CD4 <- readRDS('./Data/signature/Results_LOO_CD4.rds')
 
 
 
-LOO_CD4 <- get_LOO_table(Results_LOO_CD4)
-LOO_CD8 <- get_LOO_table(Results_LOO_CD8)
+LOO_CD4 <- get_LOO_table(Results_LOO_CD4, FALSE, FALSE)
+LOO_CD8 <- get_LOO_table(Results_LOO_CD8, FALSE, FALSE)
 
 
 # Figure SIMIC
@@ -1436,29 +1332,31 @@ pheatmap::pheatmap(MinMax_clust[, c('C3.CD8 Memory', 'C8.CD8 Cytotoxic', 'C9.CD8
 dev.off()
 
 
-pm <- pheatmap::pheatmap(MinMax_clust[, c('C3.CD8 Memory', 'C8.CD8 Cytotoxic', 'C9.CD8 Cytotoxic (late)')],color=viridis::viridis(50, direction = 1, option = "C"), fontsize=5, angle_col =45, cellwidth=40, treeheight_col=20, treeheight_row=10, silent=TRUE, legend=TRUE)$gtable
+pm <- pheatmap::pheatmap(MinMax_clust[, c('C3.CD8 Memory', 'C8.CD8 Cytotoxic', 'C9.CD8 Cytotoxic (late)')],color=viridis::viridis(50, direction = 1, option = "C"), fontsize=5, angle_col =45, cellwidth=40, treeheight_col=20, treeheight_row=10, silent=TRUE, legend=TRUE, border_color = NA)$gtable
+
+NR4A1_net <- cowplot::ggdraw() + cowplot::draw_image('./Plots/NR4A1_net.png')
+RFX5_net  <- cowplot::ggdraw() + cowplot::draw_image('./Plots/RFX5_net.png')
+SATB1_net <- cowplot::ggdraw() + cowplot::draw_image('./Plots/SATB1_net.png')
 
 pdf('./Plots/Figure5.pdf', 12, 15)
 cowplot::plot_grid(
     cowplot::plot_grid(
-        pm, get_curves(c('RFX5', 'SATB1','NR4A1')),
+        pm, get_curves(c('RFX5', 'SATB1','NR4A1', CAR.pCCL.BCMA)),
     ncol=2)
 ,
     cowplot::plot_grid(
         cowplot::plot_grid(
-            plot_name('NR4A1'), get_densities('NR4A1' , 'C3.CD8 Memory', 'C3.CD8 Memory'), get_densities('NR4A1' , 'C8.CD8 Cytotoxic', 'C8.CD8 Cytotoxic'), get_densities('NR4A1' , 'C9.CD8 Cytotoxic (late)', 'C9.CD8 Cytotoxic (late)') ,NULL, 
+            plot_name('NR4A1'), get_densities('NR4A1' , 'C3.CD8 Memory', 'C3.CD8 Memory'), get_densities('NR4A1' , 'C8.CD8 Cytotoxic', 'C8.CD8 Cytotoxic'), get_densities('NR4A1' , 'C9.CD8 Cytotoxic (late)', 'C9.CD8 Cytotoxic (late)') ,NR4A1_net, 
         nrow=1,rel_widths=c(1,5,5,5,5)),
         cowplot::plot_grid(
-            plot_name('RFX5'), get_densities('RFX5'  , 'C3.CD8 Memory'), get_densities('RFX5'  , 'C8.CD8 Cytotoxic'), get_densities('RFX5'  , 'C9.CD8 Cytotoxic (late)'),NULL, 
+            plot_name('RFX5'), get_densities('RFX5'  , 'C3.CD8 Memory'), get_densities('RFX5'  , 'C8.CD8 Cytotoxic'), get_densities('RFX5'  , 'C9.CD8 Cytotoxic (late)'),RFX5_net, 
         nrow=1,rel_widths=c(1,5,5,5,5)),
         cowplot::plot_grid(
-            plot_name('SATB1'), get_densities('SATB1' , 'C3.CD8 Memory'), get_densities('SATB1' , 'C8.CD8 Cytotoxic'), get_densities('SATB1' , 'C9.CD8 Cytotoxic (late)'),NULL,  
+            plot_name('SATB1'), get_densities('SATB1' , 'C3.CD8 Memory'), get_densities('SATB1' , 'C8.CD8 Cytotoxic'), get_densities('SATB1' , 'C9.CD8 Cytotoxic (late)'),SATB1_net,  
         nrow=1,rel_widths=c(1,5,5,5,5))
     ,nrow=3)
 ,ncol=1,nrow=2, rel_heights = 2,3)
 dev.off()
-
-
 
 
 
@@ -1486,6 +1384,65 @@ pdf('./Plots/FigureS6_log.pdf')
     ncol=2, rel_widths=c(2,1))
 
 dev.off()
+
+
+
+
+pdf('./Plots/FigureS6_log.pdf', width=7.5, height=10)
+legend <- cowplot::get_legend(FACs_Vs_Score_CD4+ theme(legend.box.margin = margin(0, 0, 0, 0, 'mm')))
+ cowplot::plot_grid(
+    cowplot::plot_grid(
+        cowplot::plot_grid(
+            cowplot::plot_grid(
+                        FACs_Vs_Expr_CD4  + theme(legend.position='none', axis.title.x=element_blank()),
+                        FACs_Vs_Score_CD4 + theme(legend.position='none', axis.title.y=element_blank(), axis.title.x=element_blank()),
+                        FACs_Vs_Expr_CD8  + theme(legend.position='none'),
+                        FACs_Vs_Score_CD8 + theme(legend.position='none', axis.title.y=element_blank()),
+            ncol=2),
+            legend, 
+        rel_heights=c(2,0.2), 
+        nrow=2),
+        cowplot::plot_grid(
+            LOO_CD4,
+            LOO_CD8,
+        nrow=2),
+    nrow=2, rel_heights = c(2,3))
+    ,
+    cowplot::plot_grid(
+            CD4_htm$gtable,
+            CD8_htm$gtable,
+        ncol=2),
+ncol=2)
+dev.off()
+
+
+pdf('./Plots/FigureS6V2_log.pdf',  width=7.5, height=10)
+legend <- cowplot::get_legend(FACs_Vs_Score_CD4+ theme(legend.box.margin = margin(0, 0, 0, 0, 'mm')))
+cowplot::plot_grid(
+    cowplot::plot_grid(
+                FACs_Vs_Expr_CD4  + theme(legend.position='none', axis.title.x=element_blank()),
+                FACs_Vs_Score_CD4 + theme(legend.position='none', axis.title.y=element_blank(), axis.title.x=element_blank()),
+                FACs_Vs_Expr_CD8  + theme(legend.position='none'),
+                FACs_Vs_Score_CD8 + theme(legend.position='none', axis.title.y=element_blank()),
+    ncol=2),
+    cowplot::plot_grid( 
+        cowplot::plot_grid( 
+            LOO_CD4,
+            LOO_CD8,
+        nrow=2),
+        cowplot::plot_grid(
+            CD4_htm$gtable,
+            CD8_htm$gtable,
+        ncol=2),
+    ncol=2),
+nrow=2)
+dev.off()
+
+
+
+
+
+
 
 
 
@@ -1965,5 +1922,162 @@ cowplot::plot_grid(
     ,
     ggplot(plotter_cd8[plotter_cd8$variable=='High' & plotter_cd8$Sample != 'ac14',], aes(x=OS, y=value, fill=variable)) + geom_boxplot(alpha=0.8) + scale_fill_manual(values = c('#7F7F7F'))+ scale_alpha_manual(values=c(0.8)) + theme_classic()  + ggtitle('DENG single cell data')+ ggsignif::geom_signif(comparisons = list(c("CR", "NR")), map_signif_level = TRUE, vjust=0.5) + ggprism::theme_prism() + labs(y='percentage of "high" cells')+ ggtitle('removing the CR higher sample') + theme(legend.position='none')
 )
+dev.off()
+
+
+# SURVIVAL IMAGES
+
+
+refactor_OS <- function(data){
+    data$Original_OS <- data$OS
+    data$OS <- as.character(data$OS)
+    data$OS[data$OS == 'PR'] <- 'NR'
+    data$OS[data$OS == 'PRTD'] <- 'CR'
+    return(data)
+}
+
+get_boxplot <- function(data, title){
+    # get a ggplot object with boxplots 
+    p <- ggplot(data, aes(x=OS, y =High_pondered, fill= OS )) + geom_boxplot(alpha=0.8) + scale_fill_manual(values = c('#DBBE78', '#7F7F7F'))+ 
+    theme_classic() + ggtitle(title) + theme(legend.position='none') + expand_limits(y=100) +
+    ggsignif::geom_signif(comparisons = list(c("CR", "NR")), map_signif_level = TRUE, vjust=0) + ggprism::theme_prism() + labs(y='Score') + 
+    scale_x_discrete(labels=c("CR" = paste0("CR\n(n=", sum(data$OS == 'CR') ,")"), "NR" = paste0("NR\n(n=", sum(data$OS == 'NR') ,")")))+ theme(legend.position='none', axis.title.x = element_blank())
+    return(p)
+}
+
+
+get_cell_proportion <- function(data){
+    #calculate the proportion of cells in each OS by high and low
+    results_CD8 <- data
+    plotter_cd8 <- results_CD8[, c('High_pondered_bin', 'Sample')]
+    plotter_cd8 <- t(table(plotter_cd8$High_pondered_bin, plotter_cd8$Sample))
+    plotter_cd8 <- as.data.frame(t(apply(plotter_cd8 , 1, FUN=function(x) x/sum(x)*100)))
+    plotter_cd8$Sample <- rownames(plotter_cd8)
+    plotter_cd8 <- merge(plotter_cd8, unique(data[, c('Sample', 'OS')]), by='Sample')
+    plotter_cd8 <- reshape2::melt(plotter_cd8)
+    plotter_cd8$variable <- factor(plotter_cd8$variable, levels=c('Low', 'High'))
+    return(plotter_cd8)
+}
+
+get_boxplot_percentage <- function(data, title){
+    check_outliers <- function(data){
+        # remove lower for both conditions
+        if(outliers::grubbs.test(data[data$OS == 'CR' ,'value'], opposite=TRUE)$p.value < 0.05){
+            data <- data[data$value != min(data[data$OS == 'CR' ,'value']) ,]
+            message('Removed outlier min')
+        }
+        if(outliers::grubbs.test(data[data$OS == 'NR' ,'value'], opposite=TRUE)$p.value < 0.05){
+            data <- data[data$value != min(data[data$OS == 'NR' ,'value']) ,]
+            message('Removed outlier min')
+        }
+        # remove higher
+        if(outliers::grubbs.test(data[data$OS == 'NR' ,'value'])$p.value < 0.05){
+            data <- data[data$value != max(data[data$OS == 'NR' ,'value']) ,]
+            message('Removed outlier max')
+        }
+        if(outliers::grubbs.test(data[data$OS == 'CR' ,'value'])$p.value < 0.05){
+            data <- data[data$value != max(data[data$OS == 'CR' ,'value']) ,]
+            message('Removed outlier max')
+        }
+        return(data)
+    }
+    data <- check_outliers(data)
+    p <- ggplot(data, aes(x=OS, y =value, fill= OS )) + geom_boxplot(alpha=0.8) + scale_fill_manual(values = c('#DBBE78', '#7F7F7F')) + theme_classic() + ggtitle(title) + theme(legend.position='none') + ggsignif::geom_signif(comparisons = list(c("CR", "NR")), map_signif_level = TRUE, vjust=0) + ggprism::theme_prism() + labs(y='Percentage of "High" cells') + scale_x_discrete(labels=c("CR" = paste0("CR\n(n=", sum(data$OS == 'CR') ,")"), "NR" = paste0("NR\n(n=", sum(data$OS == 'NR') ,")"))) + theme(legend.position='none', axis.title.x = element_blank())
+    return(p)
+}
+
+
+apply_signature <- function(dataset, signature, genes, annotation){
+    res.df <- as.data.frame(signature)
+    res2.cd4 <- res.df[res.df$GeneID %in% genes$sigGenes_symbol, c('GeneID', 'log2FoldChange', 'padj')]
+    # we keep the genes present on the signature list
+    # bulkNormalized$gene_id <- rownames(bulkNormalized)
+    dataset <- dataset[rownames(dataset) %in% genes$sigGenes_symbol,]
+
+    logplusone <- function(x) {log(x + 0.5)}
+    l <- as.data.frame(apply(dataset, 2, logplusone))
+    # head(l[,1:5])
+    zscore <- as.data.frame(scale(l))
+
+    # dim(zscore)
+    # head(zscore[,1:5])
+    zscore$GeneID <- rownames(zscore)
+    ann_markers <- merge(zscore, res2.cd4, by='GeneID')
+    DT.high <- ann_markers[, !colnames(ann_markers) %in% c('GeneID', 'log2FoldChange', 'padj')] * ann_markers[, 'log2FoldChange']
+    DT.low <- ann_markers[, !colnames(ann_markers) %in% c('GeneID', 'log2FoldChange', 'padj')] * -ann_markers[, 'log2FoldChange']
+    DT.high <- cbind(DT.high, ann_markers[, c('GeneID', 'log2FoldChange', 'padj')])
+    DT.low  <- cbind(DT.low , ann_markers[, c('GeneID', 'log2FoldChange', 'padj')])
+    DT.cd4.high <- setNames(as.data.frame(colSums(DT.high[, !colnames(DT.high) %in% c('GeneID', 'log2FoldChange', 'padj')], )), c('High_pondered'))
+    DT.cd4.high$Patient_ID <- rownames(DT.cd4.high)
+    DT.cd4.low  <- setNames(as.data.frame(colSums(DT.low[, !colnames(DT.high) %in% c('GeneID', 'log2FoldChange', 'padj')], )), c('Low_pondered'))
+    DT.cd4.low$Patient_ID <- rownames(DT.cd4.low)
+
+    # pdf('./Plots/Hist_signatures.pdf')
+    # ggplot2::ggplot(DT.cd4.high , ggplot2::aes(x=High_pondered)) + ggplot2::geom_histogram (bins=50)
+    # ggplot2::ggplot(DT.cd4.low , ggplot2::aes(x=Low_pondered)) + ggplot2::geom_histogram (bins=50)
+    # dev.off()
+
+    all_signatures <- merge(DT.cd4.high, DT.cd4.low, by='Patient_ID')
+    # stoped at line 202....
+    set.seed(123)
+    #highness
+    car_exp <- scale(all_signatures$High_pondered)
+    car_p33 <- quantile(car_exp[car_exp>0], probs = c(0.25))
+    car_p66 <- quantile(car_exp[car_exp>0], probs = c(0.75))
+    # quantile(car_exp[car_exp>0], probs = c(0.99))
+    car_exp.hl <- as.data.frame(car_exp)
+    car_exp.hl$CAR_level <- ifelse((car_exp>0 & car_exp<=car_p33), 1 , 
+                            ifelse((car_exp>car_p33 & car_exp<=car_p66) ,2, ifelse( (car_exp > car_p66), 3, 0 )))
+    car_exp.hl$CAR_High_level_COD <- ifelse((car_exp>0 & car_exp<=car_p33), 'Low' , 
+                            ifelse((car_exp>car_p33 & car_exp<=car_p66) ,'Med_to_high', ifelse( (car_exp > car_p66), 'High', 'Negative' )))
+
+    car_exp.hl$Patient_ID <- all_signatures$Patient_ID
+
+    annotation$CAR_HIGH_SCORE_LEVEL_HL <- car_exp.hl$CAR_level
+    annotation$CAR_HIGH_SCORE_COD <- car_exp.hl$CAR_High_level_COD
+    annotation$CAR_HIGH_SCORE_pondered_scaled <- car_exp.hl$V1
+    # lowness
+    car_exp <- scale(all_signatures$Low_pondered)
+    # car_exp <- all_signatures$Low_pondered
+    car_p33 <- quantile(car_exp[car_exp>0], probs = c(0.25))
+    car_p66 <- quantile(car_exp[car_exp>0], probs = c(0.75))
+    # quantile(car_exp[car_exp>0], probs = c(0.99))
+    car_exp.hl <- as.data.frame(car_exp)
+    car_exp.hl$CAR_level <- ifelse((car_exp>0 & car_exp<=car_p33), 1 , 
+                            ifelse((car_exp>car_p33 & car_exp<=car_p66) ,2, ifelse( (car_exp > car_p66), 3, 0 )))
+    car_exp.hl$CAR_High_level_COD <- ifelse((car_exp>0 & car_exp<=car_p33), 'Low' , 
+                            ifelse((car_exp>car_p33 & car_exp<=car_p66) ,'Med_to_high', ifelse( (car_exp > car_p66), 'High', 'Negative' )))
+
+    car_exp.hl$Patient_ID <- all_signatures$Patient_ID
+    annotation$CAR_LOW_SCORE_LEVEL_HL <- car_exp.hl$CAR_level
+    annotation$CAR_LOW_SCORE_COD <- car_exp.hl$CAR_High_level_COD
+    annotation$CAR_LOW_SCORE_pondered_scaled <- car_exp.hl$V1
+    annotation$Overall_score <- (annotation$CAR_HIGH_SCORE_LEVEL_HL>0)*(annotation$CAR_HIGH_SCORE_LEVEL_HL +3) + annotation$CAR_LOW_SCORE_LEVEL_HL
+    annotation$High_pondered <- all_signatures$High_pondered
+    return(annotation)
+}
+
+DENG_results <- readRDS('./Data/DENG_results.rds')
+bulkNormalized <- as.data.frame(readRDS('./Data/Normalized_Counts_Bulk.rds'))
+metadata <- read.table('./Data/METADATA_JRR.csv', sep=',' , header=TRUE)
+
+test_CD4 <- apply_signature(bulkNormalized, CD4_signature, CD4_signature_genes,  metadata)
+test_CD8 <- apply_signature(bulkNormalized, CD8_signature, CD8_signature_genes,  metadata)
+
+deng_cd8 <- get_cell_proportion(DENG_results[['results_CD8']])
+deng_cd4 <- get_cell_proportion(DENG_results[['results_CD4']])
+
+
+pdf('./Plots/OS_Analysis.pdf', width=8, height=10)
+cowplot::plot_grid(
+    cowplot::plot_grid(
+        get_boxplot(refactor_OS(test_CD4), 'FRAIETTA bulk data cd4'),
+        get_boxplot(refactor_OS(test_CD8), 'FRAIETTA bulk data cd8') + theme(axis.title.y=element_blank()),
+    ncol=2),
+    cowplot::plot_grid(
+        get_boxplot_percentage(deng_cd4[deng_cd4$variable == 'High',], 'DENG SC data cd4'),
+        get_boxplot_percentage(deng_cd8[deng_cd8$variable == 'High',], 'DENG SC data cd8')+ theme(axis.title.y=element_blank()),
+    ncol=2),
+nrow=2)
 dev.off()
 
