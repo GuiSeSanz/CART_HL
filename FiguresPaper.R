@@ -404,6 +404,10 @@ get_pie_Annot <- function(data){
 }
 
 get_peaks <- function(CHR, START, END, HIGH, LOW, filter_genes=NULL,HLstart=NULL, HLend=NULL, MIN =0, MAX=3){
+    filename <- paste0('./Plots/',filter_genes[1] ,CHR, '_',START,'_',END,'_tmp.pdf')
+    if (file.exists(filename)){
+        return(filename)
+    }
     if(START > END){
         print('inversing start-end')
         tmp_start <- START
@@ -440,7 +444,6 @@ get_peaks <- function(CHR, START, END, HIGH, LOW, filter_genes=NULL,HLstart=NULL
                             to=END,  col.histogram=c('#DBBE78'),
                             ylim = c(MIN, MAX),
                             yTicksAt=seq(0,3,0.5))
-
     if(!is.null(filter_genes)){
         biomTrack <- BiomartGeneRegionTrack(genome = "hg38", chromosome = CHR, 
                                         start = START, end = END,
@@ -451,7 +454,6 @@ get_peaks <- function(CHR, START, END, HIGH, LOW, filter_genes=NULL,HLstart=NULL
     }else{
         biomTrack <- BiomartGeneRegionTrack(genome = "hg38", chromosome = CHR, 
                                             start = START, end = END,
-                                            # filters=list(external_gene_name=c("TRPM3", 'KLF9')),
                                             name = "ENSEMBL", biomart = bm,col.line = NULL, col= NULL, 
                                             fontface.group = 4)
     }
@@ -463,7 +465,6 @@ get_peaks <- function(CHR, START, END, HIGH, LOW, filter_genes=NULL,HLstart=NULL
         fill="#A8A8A8", 
         col='grey')
     }else{
-        filename <- paste0('./Plots/',filter_genes[1] ,CHR, '_',START,'_',END,'_tmp.pdf')
         pdf(filename, height=4, width=7)
         # c( itrack, bw_high_track, bw_low_track, biomTrack, gtrack)
         Gviz::plotTracks(c(bw_high_track, bw_low_track, biomTrack),
@@ -609,6 +610,7 @@ def_getHeatmap_signature_OneForAll <- function(datasetList, datasetNames){
            cluster_col = TRUE,cluster_row = FALSE,
            # cellwidth = 8,
         #    color = colorRampPalette(c("navy", "white", "firebrick3"))(50),
+        #    color = colorRampPalette(RColorBrewer::brewer.pal(9,'Spectral'))(50),
            color = viridis::viridis(50),
            gaps_row = gap_indexes,
            # cutree_rows = 2, 
@@ -795,16 +797,27 @@ DE_Genes_CD8 <- read.table('/home/sevastopol/data/gserranos/CART_HL/Data/signatu
 DE_peaks_CD8 <- read.delim("/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/results/cd8_Lowd0_vs_Highd0_csaw_denovo_trended_csaw-windows_significant_Annotated.txt", sep="\t", header=T)
 ven_list_CD8 = list('Bulk RNA' = unique(DE_Genes_CD8[DE_Genes_CD8$padj < 0.05 ,'GeneID']), 'ATAC RNA' = unique(as.character(DE_peaks_CD8$SYMBOL)))
 
-get_geom_point <- function(gene, signif=TRUE){
+get_boxplot <- function(gene, signif=TRUE){
+    format_numbers <- function(l){
+        return(formatC(l, format = "G", digits = 2))
+    }
     tmp <- counts_norm[rownames(counts_norm) == gene, ,drop=FALSE]
     tmp <- reshape2::melt(tmp)
     tmp$HighLow <- ifelse(stringr::str_detect( as.character(tmp$variable),'High'), 'High', 'Low' )
-    p <- ggplot(tmp, aes(x=HighLow, y=value, fill=HighLow)) + geom_boxplot(alfa=0.8) + ggprism::theme_prism() + scale_fill_manual(values=c('High'='#FCB357', 'Low'='#d3d3d3'))+   ggprism::theme_prism() + labs(y='Expression', title=gene) + theme(legend.position='none', axis.title.x = element_blank(), axis.title.y = element_text(size=10), axis.text.y = element_text(size=6), plot.title = element_text(hjust = 0, size = 10), plot.subtitle=element_text(hjust = 0))
+    p <- ggplot(tmp, aes(x=HighLow, y=value, fill=HighLow)) + geom_boxplot(alpha=0.8) + ggprism::theme_prism() + scale_fill_manual(values=c('High'='#30A3CC', 'Low'='#FCB357'))+ labs(y='Expression', title=gene) + scale_y_continuous(labels = format_numbers) +  
+    theme(legend.position='none', 
+    axis.title.x = element_blank(), 
+    axis.title.y = element_text(size=18), 
+    axis.text.y = element_text(size=12), 
+    plot.title = element_text(hjust = 0, size = 10), 
+    plot.subtitle=element_text(hjust = 0)) 
     if (signif){
-        p <- p + ggsignif::geom_signif(comparisons = list(c("High", "Low")), map_signif_level = TRUE, vjust=0.5)
+        p <- p + ggsignif::geom_signif(comparisons = list(c("High", "Low")), map_signif_level = TRUE,  textsize = 8,vjust=0.5)
     }
     return(p)
 }
+
+
 
 
 pdf('./Plots/Figure2.pdf', width=10, height=15)
@@ -816,15 +829,15 @@ cowplot::plot_grid(
             get_pca(pcaData_atac, percentVar_atac, 'HighLow')+ ggtitle('ATAC-seq'), 
             lgnd, 
         ncol=1, rel_heights=c(1,1,0.2)),
-        def_getHeatmap_signature_OneForAll(c('Genes_Activation', 'Genes_Tonic', 'Genes_Prolif'), 
-                                        c('Activation', 'Tonic signal', 'Proliferation'))$gtable,
+        def_getHeatmap_signature_OneForAll(c('Genes_Activation', 'Genes_Prolif', 'Genes_Tonic'), 
+                                        c('Activation', 'Proliferation', 'Tonic signal'))$gtable,
     ncol=2, rel_widths=c(2,2))
     ,
     cowplot::plot_grid(
-                    get_geom_point('HLA-DRA'),
-                    get_geom_point('CD74'),
-                    get_geom_point('TNFRSF4'),
-                    get_geom_point('TNFRSF9'),
+                    get_boxplot('HLA-DRA'),
+                    get_boxplot('CD74')    + theme(axis.title.y=element_blank()),
+                    get_boxplot('TNFRSF4') + theme(axis.title.y=element_blank()),
+                    get_boxplot('TNFRSF9') + theme(axis.title.y=element_blank()),
             ncol=4),
     cowplot::plot_grid( 
             get_pie_Annot(peaks_CD8 ), get_venn(ven_list_CD8)+ scale_y_continuous(limits = c(-1, 1.5)), 
@@ -1927,66 +1940,6 @@ dev.off()
 
 # SURVIVAL IMAGES
 
-
-refactor_OS <- function(data){
-    data$Original_OS <- data$OS
-    data$OS <- as.character(data$OS)
-    data$OS[data$OS == 'PR'] <- 'NR'
-    data$OS[data$OS == 'PRTD'] <- 'CR'
-    return(data)
-}
-
-get_boxplot <- function(data, title){
-    # get a ggplot object with boxplots 
-    p <- ggplot(data, aes(x=OS, y =High_pondered, fill= OS )) + geom_boxplot(alpha=0.8) + scale_fill_manual(values = c('#DBBE78', '#7F7F7F'))+ 
-    theme_classic() + ggtitle(title) + theme(legend.position='none') + expand_limits(y=100) +
-    ggsignif::geom_signif(comparisons = list(c("CR", "NR")), map_signif_level = TRUE, vjust=0) + ggprism::theme_prism() + labs(y='Score') + 
-    scale_x_discrete(labels=c("CR" = paste0("CR\n(n=", sum(data$OS == 'CR') ,")"), "NR" = paste0("NR\n(n=", sum(data$OS == 'NR') ,")")))+ theme(legend.position='none', axis.title.x = element_blank())
-    return(p)
-}
-
-
-get_cell_proportion <- function(data){
-    #calculate the proportion of cells in each OS by high and low
-    results_CD8 <- data
-    plotter_cd8 <- results_CD8[, c('High_pondered_bin', 'Sample')]
-    plotter_cd8 <- t(table(plotter_cd8$High_pondered_bin, plotter_cd8$Sample))
-    plotter_cd8 <- as.data.frame(t(apply(plotter_cd8 , 1, FUN=function(x) x/sum(x)*100)))
-    plotter_cd8$Sample <- rownames(plotter_cd8)
-    plotter_cd8 <- merge(plotter_cd8, unique(data[, c('Sample', 'OS')]), by='Sample')
-    plotter_cd8 <- reshape2::melt(plotter_cd8)
-    plotter_cd8$variable <- factor(plotter_cd8$variable, levels=c('Low', 'High'))
-    return(plotter_cd8)
-}
-
-get_boxplot_percentage <- function(data, title){
-    check_outliers <- function(data){
-        # remove lower for both conditions
-        if(outliers::grubbs.test(data[data$OS == 'CR' ,'value'], opposite=TRUE)$p.value < 0.05){
-            data <- data[data$value != min(data[data$OS == 'CR' ,'value']) ,]
-            message('Removed outlier min')
-        }
-        if(outliers::grubbs.test(data[data$OS == 'NR' ,'value'], opposite=TRUE)$p.value < 0.05){
-            data <- data[data$value != min(data[data$OS == 'NR' ,'value']) ,]
-            message('Removed outlier min')
-        }
-        # remove higher
-        if(outliers::grubbs.test(data[data$OS == 'NR' ,'value'])$p.value < 0.05){
-            data <- data[data$value != max(data[data$OS == 'NR' ,'value']) ,]
-            message('Removed outlier max')
-        }
-        if(outliers::grubbs.test(data[data$OS == 'CR' ,'value'])$p.value < 0.05){
-            data <- data[data$value != max(data[data$OS == 'CR' ,'value']) ,]
-            message('Removed outlier max')
-        }
-        return(data)
-    }
-    data <- check_outliers(data)
-    p <- ggplot(data, aes(x=OS, y =value, fill= OS )) + geom_boxplot(alpha=0.8) + scale_fill_manual(values = c('#DBBE78', '#7F7F7F')) + theme_classic() + ggtitle(title) + theme(legend.position='none') + ggsignif::geom_signif(comparisons = list(c("CR", "NR")), map_signif_level = TRUE, vjust=0) + ggprism::theme_prism() + labs(y='Percentage of "High" cells') + scale_x_discrete(labels=c("CR" = paste0("CR\n(n=", sum(data$OS == 'CR') ,")"), "NR" = paste0("NR\n(n=", sum(data$OS == 'NR') ,")"))) + theme(legend.position='none', axis.title.x = element_blank())
-    return(p)
-}
-
-
 apply_signature <- function(dataset, signature, genes, annotation){
     res.df <- as.data.frame(signature)
     res2.cd4 <- res.df[res.df$GeneID %in% genes$sigGenes_symbol, c('GeneID', 'log2FoldChange', 'padj')]
@@ -2057,6 +2010,75 @@ apply_signature <- function(dataset, signature, genes, annotation){
     return(annotation)
 }
 
+refactor_OS <- function(data){
+    data$Original_OS <- as.character(data$OS)
+    data$OS <- ifelse(data$OS == 'CR' | data$Original_OS == 'PRTD', 'CR/PRTD', 'PR/NR')
+    return(data)
+}
+
+get_cell_proportion <- function(data){
+    #calculate the proportion of cells in each OS by high and low
+    results_CD8 <- data
+    plotter_cd8 <- results_CD8[, c('High_pondered_bin', 'Sample')]
+    plotter_cd8 <- t(table(plotter_cd8$High_pondered_bin, plotter_cd8$Sample))
+    plotter_cd8 <- as.data.frame(t(apply(plotter_cd8 , 1, FUN=function(x) x/sum(x)*100)))
+    plotter_cd8$Sample <- rownames(plotter_cd8)
+    plotter_cd8 <- merge(plotter_cd8, unique(data[, c('Sample', 'OS')]), by='Sample')
+    plotter_cd8 <- reshape2::melt(plotter_cd8)
+    plotter_cd8$variable <- factor(plotter_cd8$variable, levels=c('Low', 'High'))
+    return(plotter_cd8)
+}
+
+get_boxplot <- function(data, title, jitter = TRUE){
+    # get a ggplot object with boxplots 
+    color_values <- c('CR/PRTD' = '#9FC5DC', 'PR/NR' = '#D85F4E', 'CR'='#2165AD', 'NR' = '#B4172C', 'PR' = '#89401E', 'PRTD' = '#7338B5')
+    p <- ggplot(data, aes(x=OS, y =High_pondered, fill= OS )) + geom_boxplot(alpha=0.8)  + 
+    scale_fill_manual(values = color_values) + scale_color_manual(values = color_values) +
+    theme_classic() + ggtitle(title) + expand_limits(y=100) +
+    ggsignif::geom_signif(comparisons = list(c("CR/PRTD", "PR/NR")), map_signif_level = TRUE,  textsize = 12,vjust=0.5) + ggprism::theme_prism() + labs(y='Score') + 
+    scale_x_discrete(labels=c("CR/PRTD" = paste0("CR/PRTD\n(n=", sum(data$OS == 'CR/PRTD') ,")"), "PR/NR" = paste0("PR/NR\n(n=", sum(data$OS == 'PR/NR') ,")"))) + 
+    theme(legend.position='none', axis.title.x = element_blank()) + guides(fill = 'none')
+    if(jitter){
+        p <- p + geom_jitter(aes(color = Original_OS),alpha = 0.8,, width = 0.2 )
+    }
+    return(p)
+}
+
+get_boxplot_percentage <- function(data, title, jitter = TRUE){
+    check_outliers <- function(data){
+        # remove lower for both conditions
+        if(outliers::grubbs.test(data[data$OS == 'CR/PRTD' ,'value'], opposite=TRUE)$p.value < 0.05){
+            data <- data[data$value != min(data[data$OS == 'CR/PRTD' ,'value']) ,]
+            message('Removed outlier min')
+        }
+        if(outliers::grubbs.test(data[data$OS == 'PR/NR' ,'value'], opposite=TRUE)$p.value < 0.05){
+            data <- data[data$value != min(data[data$OS == 'NR' ,'value']) ,]
+            message('Removed outlier min')
+        }
+        # remove higher
+        if(outliers::grubbs.test(data[data$OS == 'PR/NR' ,'value'])$p.value < 0.05){
+            data <- data[data$value != max(data[data$OS == 'PR/NR' ,'value']) ,]
+            message('Removed outlier max')
+        }
+        if(outliers::grubbs.test(data[data$OS == 'CR/PRTD' ,'value'])$p.value < 0.05){
+            data <- data[data$value != max(data[data$OS == 'CR/PRTD' ,'value']) ,]
+            message('Removed outlier max')
+        }
+        return(data)
+    }
+    data <- check_outliers(data)
+    color_values <- c('CR/PRTD' = '#9FC5DC', 'PR/NR' = '#D85F4E', 'CR'='#2165AD', 'NR' = '#B4172C', 'NE' = '#89401E')
+    p <- ggplot(data, aes(x=OS, y =value, fill= OS )) + geom_boxplot(alpha=0.8) + scale_fill_manual(values = color_values) + scale_color_manual(values = color_values)+ theme_classic() + ggtitle(title) + 
+    ggsignif::geom_signif(comparisons = list(c("CR/PRTD", "PR/NR")) , map_signif_level = TRUE, textsize = 12,vjust=0.5) + ggprism::theme_prism() + 
+    labs(y='Percentage of "High" cells') + scale_x_discrete(labels=c("CR/PRTD" = paste0("CR/PRTD\n(n=", sum(data$OS == 'CR/PRTD') ,")"), "PR/NR" = paste0("PR/NR\n(n=", sum(data$OS == 'PR/NR') ,")"))) + 
+    theme(legend.position='none', axis.title.x = element_blank()) + guides(fill = 'none')
+    if(jitter){
+        p <- p + geom_jitter(aes(color = Original_OS),alpha = 0.8,, width = 0.2 )
+    }
+    return(p)
+}
+
+
 DENG_results <- readRDS('./Data/DENG_results.rds')
 bulkNormalized <- as.data.frame(readRDS('./Data/Normalized_Counts_Bulk.rds'))
 metadata <- read.table('./Data/METADATA_JRR.csv', sep=',' , header=TRUE)
@@ -2067,17 +2089,167 @@ test_CD8 <- apply_signature(bulkNormalized, CD8_signature, CD8_signature_genes, 
 deng_cd8 <- get_cell_proportion(DENG_results[['results_CD8']])
 deng_cd4 <- get_cell_proportion(DENG_results[['results_CD4']])
 
+deng_cd8$Original_OS <- deng_cd8$OS 
+deng_cd8[deng_cd8$Sample == 'ac06','Original_OS'] <- 'NE'
+deng_cd8$OS <- ifelse(deng_cd8$OS == 'NR', 'PR/NR', 'CR/PRTD')
+deng_cd4$Original_OS <-  deng_cd4$OS 
+deng_cd4[deng_cd4$Sample == 'ac06','Original_OS'] <- 'NE'
+deng_cd4$OS <- ifelse(deng_cd4$OS == 'NR', 'PR/NR', 'CR/PRTD')
 
-pdf('./Plots/OS_Analysis.pdf', width=8, height=10)
+
+
+pdf('./Plots/OS_Analysis.pdf', width=8, height=12)
 cowplot::plot_grid(
     cowplot::plot_grid(
-        get_boxplot(refactor_OS(test_CD4), 'FRAIETTA bulk data cd4'),
-        get_boxplot(refactor_OS(test_CD8), 'FRAIETTA bulk data cd8') + theme(axis.title.y=element_blank()),
+        get_boxplot(refactor_OS(test_CD4), 'FRAIETTA bulk data cd4') + theme(axis.text.y = element_text(size=20),axis.title.y = element_text(size=25), axis.text.x = element_text(size=18)) ,
+        get_boxplot(refactor_OS(test_CD8), 'FRAIETTA bulk data cd8') + theme(axis.title.y=element_blank(), axis.text.y = element_text(size=20),  axis.text.x = element_text(size=18), legend.position='right'),
+    ncol=2, rel_widths = c(1, 1.3)),
+    cowplot::plot_grid(
+        get_boxplot_percentage(deng_cd4[deng_cd4$variable == 'High',], 'DENG SC data cd4') + theme(axis.text.y = element_text(size=20),axis.title.y = element_text(size=25) , axis.text.x = element_text(size=18) ),
+        get_boxplot_percentage(deng_cd8[deng_cd8$variable == 'High',], 'DENG SC data cd8')+ theme(axis.title.y=element_blank(), axis.text.y = element_text(size=20), axis.text.x = element_text(size=18), legend.position='right' ),
+    ncol=2, rel_widths = c(1, 1.3)),
+nrow=2)
+dev.off()
+
+
+pdf('./Plots/OS_Analysis2.pdf', width=8, height=12)
+cowplot::plot_grid(
+    cowplot::plot_grid(
+        get_boxplot(refactor_OS(test_CD4), 'FRAIETTA bulk data cd4', FALSE) + theme(axis.text.y = element_text(size=20),axis.title.y = element_text(size=25), axis.text.x = element_text(size=18)) ,
+        get_boxplot(refactor_OS(test_CD8), 'FRAIETTA bulk data cd8', FALSE) + theme(axis.title.y=element_blank(), axis.text.y = element_text(size=20),  axis.text.x = element_text(size=18), legend.position='none'),
     ncol=2),
     cowplot::plot_grid(
-        get_boxplot_percentage(deng_cd4[deng_cd4$variable == 'High',], 'DENG SC data cd4'),
-        get_boxplot_percentage(deng_cd8[deng_cd8$variable == 'High',], 'DENG SC data cd8')+ theme(axis.title.y=element_blank()),
+        get_boxplot_percentage(deng_cd4[deng_cd4$variable == 'High',], 'DENG SC data cd4', FALSE) + theme(axis.text.y = element_text(size=20),axis.title.y = element_text(size=25) , axis.text.x = element_text(size=18) ),
+        get_boxplot_percentage(deng_cd8[deng_cd8$variable == 'High',], 'DENG SC data cd8', FALSE)+ theme(axis.title.y=element_blank(), axis.text.y = element_text(size=20), axis.text.x = element_text(size=18), legend.position='none' ),
     ncol=2),
 nrow=2)
 dev.off()
 
+
+
+
+#### Check the signature created with other methods
+rds_test <- readRDS('/home/sevastopol/data/mcallejac/JuanRo_SimiC/data/CART_HIGHLOW/Scores_Improved_Apr/HighLowCod_ctrl_integrated_seurat_cd4cd8_clusters.rds')
+
+coords <- as.data.frame(rds_test@reductions$umap@cell.embeddings)
+coords$cell_id <- sub('-', '.',rownames(coords))
+clusters <- setNames(as.data.frame(rds_test$ClusterNames_0.8_by_JR), 'Cluster')
+clusters$cell_id <- sub('-', '.',rownames(clusters))
+levels(clusters$Cluster)[levels(clusters$Cluster)=="21.CD4 Cytotoxic"] <- "C21.CD4 Cytotoxic"
+coords <- merge(coords, car_exp_level_SC_FP[, c('cell_id', 'High_pondered', 'CAR_Exp', 'CD')], by='cell_id')
+coords$High_pondered_BinScore <- ifelse(coords$High_pondered > 0, 'High', 'Low')
+coords <- merge(coords, clusters, by='cell_id')
+
+
+get_HL_per_cluster <- function(coords, data, cutoff=NULL){
+    composition <- coords
+    composition$cell_id <- stringr::str_remove(composition$cell_id ,'([\\.-][\\d]$)')
+    rownames(data) <- stringr::str_remove(rownames(data) ,'([\\.-][\\d]$)')
+    composition <- merge(composition, setNames(data, 'value'), by.x='cell_id', by.y=0)
+    if(is.null(cutoff)){
+        composition$value <- ifelse(composition$value > 0, 'High', 'Low')
+    }else{
+        composition$value <- ifelse(composition$value > cutoff, 'High', 'Low')
+    }
+    composition$Cluster <- as.character(composition$Cluster)
+    composition <- table(composition$Cluster, composition$value)
+    composition <- as.data.frame.matrix(composition)
+    composition$High_prop <- apply(composition, 1, FUN=function(x) (x[1]/sum(x))*100 )
+    # composition$Cluster <- factor(rownames(composition) , levels=c(sort(rownames(composition)))) # plot the clusters annotated with their names
+    composition$Cluster <- factor(stringr::str_extract(rownames(composition), '(?<=C)[\\d]{1,2}') , levels=c(sort(as.numeric(stringr::str_extract(rownames(composition), '(?<=C)[\\d]{1,2}'))))) # plot just the cluster numbers
+    composition <- ggplot(composition, aes(x=Cluster, y=High_prop))+  geom_bar(stat='identity', fill = "#30A3CC") + ggprism::theme_prism() + labs(x= 'Cluster', y = '% of cells') + theme(panel.grid.major = element_line(colour="#f0f0f0")) + ylim(0,100)
+    return(composition)
+}
+
+get_umap_plot <- function(data){
+     p <- ggplot(data, aes(x=UMAP_1, y=UMAP_2, color= value)) + 
+        geom_point(alpha=0.7, size = 0.8)+ ggprism::theme_prism() 
+    if(class(data$value[1]) == 'numeric'){
+       p <- p +  shades::lightness(shades::saturation(viridis::scale_color_viridis(option='turbo'), shades::scalefac(0.70)), shades::scalefac(0.90)) +
+       guides(color = guide_colourbar(barwidth = 4, barheight = 0.3))
+    }else{
+         p <- p + scale_color_manual(values = c('#30A3CC', '#7F7F7F'))
+    }
+    p <- p + theme(legend.position = 'bottom', 
+                    axis.title.x = element_blank(), 
+                    axis.title.y = element_blank(), 
+                    axis.text.x = element_blank(), 
+                    axis.text.y = element_blank(), 
+                    axis.ticks.y = element_blank(), 
+                    axis.ticks.x = element_blank(),
+                    legend.margin=margin(0,0,0,0),
+                    legend.box.margin=margin(-10,-10,-10,-10))
+  return(p)
+}
+
+get_values_on_coords <- function(coords, prm, bin=FALSE) {
+    tmp <- coords
+    tmp$cell_id <- sub('\\.', '-', tmp$cell_id)
+    tmp <- merge(tmp, setNames(as.data.frame(rds_test[[prm]]), 'value'), by.x='cell_id', by.y=0)
+    if (bin) {
+        tmp$value <- ifelse(tmp$value > mean(tmp$value), 'High', 'Low')
+    }
+   return(get_umap_plot(tmp))
+}
+
+get_GSVA_on_coords <- function(coords, data, bin=NULL){
+    data <- setNames(as.data.frame(data), 'value')
+    tmp <- merge(coords, data, by.x='cell_id',by.y=0)
+    if (!is.null(bin)) {
+        tmp$value <- ifelse(tmp$value > bin, 'High', 'Low')
+    }
+    return(get_umap_plot(tmp))
+}
+
+gsva_ScaledNorm <- as.data.frame(t(readRDS('./Data/Signatures_gsva_ScaledNorm.rds')))
+rownames(gsva_ScaledNorm) <- sub('-','.', rownames(gsva_ScaledNorm))
+gsva_Norm       <- as.data.frame(t(readRDS('./Data/Signatures_gsva_Norm.rds')))
+rownames(gsva_Norm) <- sub('-','.', rownames(gsva_Norm))
+
+
+
+plotter <- coords[, c('cell_id', 'UMAP_1', 'UMAP_2', 'High_pondered')]
+plotter <-  setNames(plotter, c('cell_id', 'UMAP_1', 'UMAP_2', 'value'))
+plotter_bin <- coords[, c('cell_id', 'UMAP_1', 'UMAP_2', 'High_pondered_BinScore')]
+plotter_bin <-  setNames(plotter_bin, c('cell_id', 'UMAP_1', 'UMAP_2', 'value'))
+plotter_percent <- coords[,c('High_pondered', 'cell_id')]
+rownames(plotter_percent) <- plotter_percent$cell_id
+
+
+pdf('./Plots/all_Signatures.pdf', width=10, height=12)
+cowplot::plot_grid(
+    cowplot::plot_grid(
+        # get_values_on_coords(coords, 'AUC_score_CD8_H'), 
+        # get_values_on_coords(coords, 'AMS_high_score1', bin=TRUE), 
+        get_values_on_coords(coords, 'AMS_HIGH_SCORE_pondered_scaled'), 
+        get_values_on_coords(coords, 'AMS_HIGH_SCORE_pondered_scaled', bin=TRUE), 
+        get_HL_per_cluster(coords, as.data.frame(rds_test[['AMS_HIGH_SCORE_pondered_scaled']]))
+    , ncol=3, rel_widths=c(1,1,1.2)),
+    cowplot::plot_grid(
+        get_values_on_coords(coords, 'AUC_HIGH_SCORE_pondered_scaled'), 
+        get_values_on_coords(coords, 'AUC_HIGH_SCORE_pondered_scaled', bin=TRUE), 
+        get_HL_per_cluster(coords, as.data.frame(rds_test[['AUC_HIGH_SCORE_pondered_scaled']]))
+    , ncol=3, rel_widths=c(1,1,1.2)),
+    cowplot::plot_grid(
+        get_GSVA_on_coords(coords, gsva_ScaledNorm[,'High_CD8',drop=F]), 
+        get_GSVA_on_coords(coords, gsva_ScaledNorm[,'High_CD8',drop=F], bin=0.1), 
+        get_HL_per_cluster(coords, gsva_ScaledNorm[,'High_CD8',drop=F], 0.1)
+    , ncol=3, rel_widths=c(1,1,1.2)),
+    cowplot::plot_grid(
+        get_umap_plot(plotter), 
+        get_umap_plot(plotter_bin), 
+        get_HL_per_cluster(coords, plotter_percent[, 'High_pondered', drop=F])
+    , ncol=3, rel_widths=c(1,1,1.2))
+,nrow=4,
+labels=c('Seurat', 'AUCell', 'GSVA', 'Custom'), align = "h", hjust = 0, vjust=0.45)
+dev.off()
+
+
+pdf('./Plots/Signatures_Comparison.pdf', height=8)
+cowplot::plot_grid(
+        get_values_on_coords(coords, 'AMS_HIGH_SCORE_pondered_scaled'), 
+        get_values_on_coords(coords, 'AUC_HIGH_SCORE_pondered_scaled'), 
+        get_GSVA_on_coords(coords, gsva_ScaledNorm[,'High_CD8',drop=F]), 
+        get_umap_plot(plotter)
+,nrow=2,labels=c('Seurat', 'AUCell', 'GSVA', 'Custom'), align = "h", hjust = 0, vjust=0.45)
+dev.off()

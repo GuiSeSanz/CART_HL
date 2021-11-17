@@ -131,7 +131,7 @@ for (folder in folders){
 results_CD4 <- merge(results_CD4, metadata, by='Sample') 
 results_CD8 <- merge(results_CD8, metadata, by='Sample') 
 DENG_results <- list(results_CD4=results_CD4, results_CD8=results_CD8)
-saveRDS(DENG_results , './Data/DENG_results.rds')
+# saveRDS(DENG_results , './Data/DENG_results.rds')
 
 pdf('./Plots/Signature_HIGH_TEST.pdf')
 plotter_cd4 <- results_CD4[, c('High_pondered_bin', 'Sample')]
@@ -308,7 +308,7 @@ coords$Cluster <- stringr::str_remove(coords$Cluster, '^C?[\\d]{1,2}\\.')
 
 pdf('./Plots/Umap_Score_CarExp.pdf', width=8)
 cowplot::plot_grid(
-ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= High_pondered, shape = CD)) + geom_point(alpha=0.6) + viridis::scale_color_viridis()  + theme_bw() + labs(subtitle = 'High-low score') + theme(legend.position='bottom') +guides(shape=FALSE) ,
+ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= High_pondered, shape = CD)) + geom_point(alpha=0.4) + viridis::scale_color_viridis()  + theme_bw() + labs(subtitle = 'High-low score') + theme(legend.position='bottom') +guides(shape=FALSE) ,
 ggplot(coords, aes(x=UMAP_1, y=UMAP_2, color= CAR_Exp, shape = CD)) + geom_point(alpha=0.6) + viridis::scale_color_viridis()  + theme_bw() + labs(subtitle = 'CAR expression')+ theme(legend.position='bottom', legend.key.width= unit(4, 'mm')) ,
 ncol=2)
 
