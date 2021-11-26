@@ -4,7 +4,7 @@ library(AnnotationHub)
 library(ggplot2)
 library(ggraph)
 library(ensembldb)
-
+library(harmony)
 
 get_expression_signature <- function(gene_list_name, df, coords = coords, upplim=NULL, split_HL=FALSE){
         check_genes <- function(gene_list, df){
@@ -59,7 +59,8 @@ get_umap <- function(data, gene, upplim=NULL ){
     }
     gene_expr$cell_id <- sub('-','.', rownames(gene_expr))
     coords_markers <- merge(coords, gene_expr, by=0)
-    plot <- ggplot(coords_markers, aes(x=UMAP_1, y=UMAP_2, color= get(gene))) + 
+    coords_markers$orderRank <- rank(coords_markers[,gene], ties.method="first")
+    plot <- ggplot(coords_markers, aes(x=UMAP_1, y=UMAP_2, color= get(gene)), order=orderRank) + 
     geom_point(alpha=0.9, size = 0.6) + 
     # viridis::scale_color_viridis()+
     scale_color_gradient(low="grey90", high ="blue", name = 'Expression') + 
@@ -273,8 +274,17 @@ apply_signature <- function(dataset, signature, genes, sample_name, cargene = 'C
 
 
 
-s_genes   <- c("UBR7","RFC2","RAD51","MCM2","TIPIN","MCM6","UNG","POLD3","WDR76","CLSPN","CDC45","CDC6","MSH2","MCM5","POLA1","MCM4","RAD51AP1","GMNN","RPA2","CASP8AP2","HELLS","E2F8","GINS2","PCNA","NASP","BRIP1","DSCC1","DTL","CDCA7","CENPU","ATAD2","CHAF1B","USP1","SLBP","RRM1","FEN1","RRM2","EXO1","CCNE2","TYMS","BLM","PRIM1","UHRF1")
-g2m_genes <- c("NCAPD2","ANLN","TACC3","HMMR","GTSE1","NDC80","AURKA","TPX2","BIRC5","G2E3","CBX5","RANGAP1","CTCF","CDCA3","TTK","SMC4","ECT2","CENPA","CDC20","NEK2","CENPF","TMPO","HJURP","CKS2","DLGAP5","PIMREG","TOP2A","PSRC1","CDCA8","CKAP2","NUSAP1","KIF23","KIF11","KIF20B","CENPE","GAS2L3","KIF2C","NUF2","ANP32E","LBR","MKI67","CCNB2","CDC25C","HMGB2","CKAP2L","BUB1","CDK1","CKS1B","UBE2C","CKAP5","AURKB","CDCA2","TUBB4B","JPT1")
+s_genes   <- c("UBR7","RFC2","RAD51","MCM2","TIPIN","MCM6","UNG","POLD3","WDR76",
+"CLSPN","CDC45","CDC6","MSH2","MCM5","POLA1","MCM4","RAD51AP1","GMNN","RPA2",
+"CASP8AP2","HELLS","E2F8","GINS2","PCNA","NASP","BRIP1","DSCC1","DTL","CDCA7",
+"CENPU","ATAD2","CHAF1B","USP1","SLBP","RRM1","FEN1","RRM2","EXO1","CCNE2",
+"TYMS","BLM","PRIM1","UHRF1")
+g2m_genes <- c("NCAPD2","ANLN","TACC3","HMMR","GTSE1","NDC80","AURKA","TPX2",
+"BIRC5","G2E3","CBX5","RANGAP1","CTCF","CDCA3","TTK","SMC4","ECT2","CENPA",
+"CDC20","NEK2","CENPF","TMPO","HJURP","CKS2","DLGAP5","PIMREG","TOP2A","PSRC1",
+"CDCA8","CKAP2","NUSAP1","KIF23","KIF11","KIF20B","CENPE","GAS2L3","KIF2C",
+"NUF2","ANP32E","LBR","MKI67","CCNB2","CDC25C","HMGB2","CKAP2L","BUB1","CDK1",
+"CKS1B","UBE2C","CKAP5","AURKB","CDCA2","TUBB4B","JPT1")
 
 
 ###################################################
@@ -432,6 +442,8 @@ all_merged_int <- RunHarmony(all_merged, "sample")
 harmony_embeddings <- Embeddings(all_merged_int, 'harmony')
 all_merged_int <- RunUMAP(all_merged_int, reduction = "harmony",  dims = 1:PCA_dims)
 
+saveRDS(all_merged_int, paste0(PLOT_PATH, 'all_merged_int.rds'))
+
  pdf('/home/sevastopol/data/gserranos/CART_HL/Plots/DENG_Tests/Test.pdf', height = 8)
     DimPlot(object = all_merged_int, reduction = "umap", pt.size = .1, group.by = "sample")
     features = c('CD8A', 'CD3E', 'CD4', 'CD3D', 'IL7R', 'CCR7', 'SELL', 'CD69', 'FMC63-CD19SCFV')
@@ -457,6 +469,7 @@ get_umap_signature(tmp , 'HL signature'),
 get_umap_signature(tmp_bin , 'HL bin') + theme(legend.position = "bottom"),
 ncol=2)
 dev.off()
+
 
 
 pdf('/home/sevastopol/data/gserranos/CART_HL/Plots/DENG_Tests/DENG_signatures_expanded.pdf', height = 12, width=10)
@@ -487,7 +500,7 @@ cowplot::plot_grid(
 	),
 	cowplot::plot_grid(
 		get_umap(normData, 'CD4'),
-		get_umap(normData, 'TCF7'),
+		get_umap(normData, 'PDCD1'),
 		get_umap(normData, 'HLA-DRA'),
 		get_umap(normData, 'GZMA'),
 		get_umap(normData, 'LAG3', 5),
@@ -502,3 +515,9 @@ dev.off()
 
 
 
+pdf('/home/sevastopol/data/gserranos/CART_HL/Plots/DENG_Tests/aaa.pdf')
+df <- as.data.frame(diamonds[order(diamonds$price, decreasing=TRUE), ])
+ggplot(data = df,aes(x=factor(cut),y=carat,colour=price)) + 
+geom_point(position=position_jitter(width=.4)) +
+scale_colour_gradientn(colours=c("grey20","orange","orange3"))
+dev.off()

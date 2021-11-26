@@ -2086,6 +2086,16 @@ metadata <- read.table('./Data/METADATA_JRR.csv', sep=',' , header=TRUE)
 test_CD4 <- apply_signature(bulkNormalized, CD4_signature, CD4_signature_genes,  metadata)
 test_CD8 <- apply_signature(bulkNormalized, CD8_signature, CD8_signature_genes,  metadata)
 
+data_2_JR <- merge(setNames(test_CD4[, c('High_pondered_bin', 'High_pondered', 'cell_id')] , 
+                                       c('CD4_Signature_bin', 'CD4_Signature', 'Patient_id')), 
+                   setNames(test_CD8[, c('High_pondered_bin', 'High_pondered', 'cell_id')] , 
+                                       c('CD8_Signature_bin', 'CD8_Signature', 'Patient_id')), 
+                   by = 'Patient_id')
+data_2_JR$Protocol <- stringr::str_extract(data_2_JR$Patient_id, '^[\\d]+')
+data_2_JR$Patient_ID <- as.numeric(stringr::str_extract(data_2_JR$Patient_id, '(?<=-)[\\d]+'))
+WriteXLS::WriteXLS(data_2_JR, ExcelFileName='./Plots/Signatures_FRAIETTA.xlsx', SheetNames = names('Signature_per_patient'),  col.names=TRUE, row.names=FALSE, BoldHeaderRow=TRUE)
+
+
 deng_cd8 <- get_cell_proportion(DENG_results[['results_CD8']])
 deng_cd4 <- get_cell_proportion(DENG_results[['results_CD4']])
 
@@ -2253,3 +2263,128 @@ cowplot::plot_grid(
         get_umap_plot(plotter)
 ,nrow=2,labels=c('Seurat', 'AUCell', 'GSVA', 'Custom'), align = "h", hjust = 0, vjust=0.45)
 dev.off()
+
+
+
+
+# Survival test COX
+
+data_2_JR
+lung <- survival::lung
+
+
+
+
+survival_data <- data.frame(
+    Protocol   = c('04409', '04409', '04409', '04409', '04409', '04409', '04409', '03712', '03712', '03712', '03712', '03712', '03712', '03712'),
+    Patient_ID = c(1 , 2, 5, 9, 10, 12, 22, 3, 4, 6, 16, 18, 22, 45),
+    Time       = c(1710, 1696, 1183, 639, 1093, 185, 312, 879, 886, 823, 788, 228, 87, 421),
+    Status     = c('Alive', 'Alive', 'Died', 'Died', 'Alive','Died','Died','Alive', 'Alive', 'Alive', 'Alive', 'Died', 'Died ', 'Alive'))
+
+survival_data <- merge(survival_data, data_2_JR, by=c('Protocol', 'Patient_ID'))
+survival_data$Status <- ifelse(survival_data$Status == 'Alive', 1, 2)
+res_cox_CD8 <- survival::coxph(survival::Surv(Time, Status) ~ CD8_Signature, data = survival_data)
+
+survival_data$CD4_Signature_bin_100 <- ifelse(survival_data$CD4_Signature > -100, 'High', 'Low')
+survival_data$CD8_Signature_bin_100 <- ifelse(survival_data$CD8_Signature > -100, 'High', 'Low')
+
+covariates <- c('CD4_Signature', 'CD8_Signature', 
+                'CD4_Signature_bin_100', 'CD8_Signature_bin_100')
+
+univ_formulas <- sapply(covariates,
+                        function(x) as.formula(paste('survival::Surv(Time, Status)~', x)))
+
+univ_models <- lapply( univ_formulas, function(x){survival::coxph(x, data = survival_data)})
+
+univ_results <- lapply(univ_models,
+                       function(x){ 
+                          x <- summary(x)
+                          p.value<-signif(x$wald["pvalue"], digits=2)
+                          wald.test<-signif(x$wald["test"], digits=2)
+                          beta<-signif(x$coef[1], digits=2);#coeficient beta
+                          HR <-signif(x$coef[2], digits=2);#exp(beta)
+                          HR.confint.lower <- signif(x$conf.int[,"lower .95"], 2)
+                          HR.confint.upper <- signif(x$conf.int[,"upper .95"],2)
+                          HR <- paste0(HR, " (", 
+                                       HR.confint.lower, "-", HR.confint.upper, ")")
+                          res<-c(beta, HR, wald.test, p.value)
+                          names(res)<-c("beta", "HR (95% CI for HR)", "wald.test", 
+                                        "p.value")
+                          return(res)
+                          #return(exp(cbind(coef(x),confint(x))))
+                         })
+
+res <- t(as.data.frame(univ_results, check.names = FALSE))
+as.data.frame(res)
+
+
+pdf('./Plots/Survival_test_CD8.pdf', width=8)
+fit<- survival::survfit(survival::Surv(Time, Status) ~ CD8_Signature_bin_100, data = survival_data)
+survminer::ggsurvplot(fit,palette = "Dark2",
+                      risk.table = TRUE, risk.table.y.text.col = TRUE)
+
+fit<- survival::survfit(survival::Surv(Time, Status) ~ CD4_Signature_bin_100, data = survival_data)
+survminer::ggsurvplot(fit, palette = "Dark2",
+                      risk.table = TRUE, risk.table.y.text.col = TRUE)
+
+res.cox <- survival::coxph(survival::Surv(Time, Status) ~ CD4_Signature, data =  survival_data)
+survminer::ggsurvplot(survfit(res.cox, data = survival_data), palette= "Dark2",
+           ggtheme = theme_minimal())
+dev.off()
+
+
+
+# COX models
+
+
+CD4_signature_genes <-read.delim(file="./Data/signature/BatchK_CD4_SIGGenes_BASAL_BOTH_LowvsHigh.tsv",sep="\t",header=T)
+CD8_signature_genes <-read.delim(file="./Data/signature/BatchK_CD8_SIGGenes_BASAL_BOTH_LowvsHigh.tsv",sep="\t",header=T)
+CD4_signature <- read.delim(file="./Data/signature/BatchK_CD4_output_BASAL_BOTH_LowvsHigh.tsv",sep="\t",header=T)
+CD8_signature <- read.delim(file="./Data/signature/BatchK_CD8_output_BASAL_BOTH_LowvsHigh.tsv",sep="\t",header=T)
+
+bulkNormalized_t <- t(bulkNormalized)
+
+survival_data_cd4 <- survival_data
+survival_data_cd8 <- survival_data
+
+survival_data_cd4 <- merge(survival_data_cd4, bulkNormalized_t[, colnames(bulkNormalized_t) %in% CD4_signature_genes$sigGenes_symbol], by.x='Patient_id', by.y=0)
+
+
+selectedGenesNames <- c()
+allPvalues <- c()
+
+pb <- progress::progress_bar$new(total = length(CD4_signature_genes$sigGenes_symbol))
+for (gene in CD4_signature_genes$sigGenes_symbol){
+    if(gene %in% colnames(survival_data_cd4)){
+        tmpCox <- survival::coxph(survival::Surv(survival_data_cd4[,'Time'], survival_data_cd4[,'Status']) ~ survival_data_cd4[,gene], data = survival_data, model = T, method = "breslow")
+        tmpResults <- summary(tmpCox)
+        allPvalues <- c(allPvalues, tmpResults$waldtest["pvalue"][[1]])
+        if (tmpResults$waldtest["pvalue"][[1]] < 0.1){
+            selectedGenesNames <- c(selectedGenesNames, gene)
+        }
+    }
+    pb$tick()
+}
+
+
+GroupedCox <- survival::coxph(survival::Surv(survival_data_cd4[,"Time"], survival_data_cd4[,"Status"]) ~ ., data = survival_data_cd4[,selectedGenesNames], model = T, method = "breslow")
+
+summary(GroupedCox)
+
+
+
+"""
+https://www.biostars.org/p/344233/
+https://www.biostars.org/p/360403/
+data has genes in columns?
+
+coxph(Surv(OS_MONTHS, Events) ~., data=merged_data [, c(2, 4:303)])
+
+output...
+
+                  coef    exp(coef)           se(coef)    z    p
+Gene1                0.07092   1.07349  0.05348 1.33 0.18
+Gene2               0.02332   1.02360  0.05813 0.40 0.69
+Gene3               0.00175   1.00175  0.06734 0.03 0.98
+Gene n.....
+"""
