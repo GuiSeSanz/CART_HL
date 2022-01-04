@@ -215,8 +215,12 @@ clusters_2_keep <- as.data.frame.matrix(with(df_auc, table(cluster_id, .id)))
 clusters_2_keep$cluster_id <- rownames(clusters_2_keep)
 clusters_2_keep <- clusters_2_keep[rowSums(clusters_2_keep > 10) == ncol(clusters_2_keep), 'cluster_id']
 #Modify to keep only some interesting and cell-populated clusters
-clusters_2_keep <- c( "C3.CD8 Memory","C4.CD4 Memory", "C6.CD4 Activated","C8.CD8 Cytotoxic",'C9.CD8 Cytotoxic (late)', "C12.CD4 Th2 helper", "C17.CD4 Activated")
+clusters_2_keep <- c( "C3.CD8 Memory","C4.CD4 Memory", "C6.CD4 Activated",
+                      "C8.CD8 Cytotoxic",'C9.CD8 Cytotoxic (late)', 
+                      "C12.CD4 Th2 helper", 'C16.CD4 INF response',
+                      "C17.CD4 Activated")
 df_auc_common <- df_auc[df_auc$cluster_id %in% clusters_2_keep, ]
+# all clusters 
 # df_auc_common$cluster_id  <- as.character(df_auc_common$cluster_id )
 # df_auc_common[df_auc_common$cluster_id == "C17.CD4 Activated", 'cluster_id'] <- 'CD4 Activated'
 # df_auc_common[df_auc_common$cluster_id == "C6.CD4 Activated", 'cluster_id'] <- 'CD4 Activated'
@@ -230,7 +234,7 @@ df_auc_common <- df_auc[df_auc$cluster_id %in% clusters_2_keep, ]
 
 # calculate the regulation dissimilarity by the total variation score
 MinMax_clust<-NULL
-pb <- progress::progress_bar$new(total=length(clusters_2_keep))
+pb <- progress::progress_bar$new(total=length(unique(df_auc_common$cluster_id)))
 for(cluster in sort(unique(df_auc_common$cluster_id))){
   tmp <- df_auc_common[df_auc_common$cluster_id == cluster,]
   MinMax_val <- NULL
@@ -257,8 +261,28 @@ for(cluster in sort(unique(df_auc_common$cluster_id))){
   pb$tick()
 }
 
+MinMax_all<-NULL
+tmp <- df_auc
+MinMax_all <- data.frame(TF=NULL, MinMax=NULL)
+pb <- progress::progress_bar$new(total=length(sort(unique(df_auc$driver))))
+for (tf in sort(unique(df_auc$driver))){
+  n_breaks = 100
+  Wauc_dist <- list()
+  for (phenotype in phenotypes){
+    Wauc_dist[[phenotype]] <- hist(tmp[tmp$.id ==phenotype & tmp$driver ==tf, 'value'], breaks = c(seq(0,1, 1/n_breaks)), plot=FALSE)$density
+  }
+  mat <-  do.call('rbind', Wauc_dist)
+  mat <- mat[complete.cases(mat),]
+  minmax_diff <- apply(na.omit(mat), 2, max) - apply(na.omit(mat), 2, min)
+  variant <- sum(abs(minmax_diff)) / n_breaks
+  variant <- variant/ sum(rowSums(mat)!=0)
+  MinMax_all <- rbind(MinMax_all,data.frame(TF = tf, MinMax=variant))
+  pb$tick()
+}
 
-clusters_2_keep <- c("C17.CD4 Activated", "C6.CD4 Activated", "C4.CD4 Memory", "C0.CD4 Memory", 'C9.CD8 Cytotoxic (late)', "C8.CD8 Cytotoxic", "C3.CD8 Memory", 'C1.CD4 Th2 helper', "C12.CD4 Th2 helper")
+saveRDS(MinMax_clust, './Data/MinMax_clust.rds')
+saveRDS(MinMax_all, './Data/MinMax_all.rds')
+
 df_auc <- df_auc[df_auc$cluster_id %in% clusters_2_keep, ]
 df_auc$cluster_id  <- as.character(df_auc$cluster_id )
 df_auc[df_auc$cluster_id == "C17.CD4 Activated", 'cluster_id'] <- 'CD4 Activated'
@@ -298,7 +322,30 @@ for (clust in sort(unique(df_auc$cluster_id))){
 }
 
 
-  saveRDS(df_auc, './Data/SimiC_aucs.rds')
+# plot the densities of the AUC and the score per TF in all clusters together
+pb <- progress::progress_bar$new(total=length(unique(df_auc$driver)))
+pdf(paste0(plot_root_dir ,file_idx,'Simic_Auc_All.pdf'), width = 15, onefile = TRUE)
+plot_counter <- 1
+for (tf in unique(df_auc$driver)){
+  assign( paste0('p', plot_counter), 
+  ggplot(df_auc[df_auc$driver ==tf,], aes(x=value, fill=.id)) + 
+  geom_density(alpha = 0.6, adjust = 1/8) + theme_classic() + 
+  scale_fill_manual( values=c('#30A3CC', '#bfbfbf')) +
+  theme(legend.position = 'top')+ geom_rug() + 
+  ggtitle(paste0(tf, '   ', MinMax_all[MinMax_all$TF == tf, 'MinMax'])) )
+  if(plot_counter == 2){
+    grid.arrange(p1, p2, ncol=2)
+    plot_counter <- 1
+  }else{
+    plot_counter <- plot_counter +1
+  }
+  pb$tick()
+}
+dev.off()
+
+# all_data <- merge(MinMax_all, MinMax_clust, by.x= 'TF', by.y=0)
+# xlsx::write.xlsx(all_data, './Plots/All_MinMax_data.xlsx', sheetName = 'All_MinMax_data')
+saveRDS(df_auc, './Data/SimiC_aucs.rds')
 
 
 clust_order_asc<-names(sort(apply(MinMax_clust, 2, mean)))
@@ -458,3 +505,77 @@ High_cells <- names(which(aaa[,'CAR-pCCL-BCMA'] > quantile(as.numeric(aaa[,'CAR-
 Low_cells <- names(which(aaa[,'CAR-pCCL-BCMA'] < quantile(as.numeric(aaa[,'CAR-pCCL-BCMA' ]), 0.33)))
 
 table(seurat_data@)
+
+
+
+saveRDS(MinMax_clust, './Data/MinMax_clust.rds')
+saveRDS(MinMax_all, './Data/MinMax_all.rds')
+saveRDS(df_auc, './Data/SimiC_aucs.rds')
+
+get_density <- function(data, score, tf){
+  p <- ggplot(data[data$driver ==tf,], aes(x=value, fill=.id)) + 
+  geom_density(alpha = 0.6, adjust = 1/8) + theme_classic() + 
+  scale_fill_manual( values=c('#30A3CC', '#bfbfbf')) +
+  theme(legend.position = 'none')+
+  ggtitle(paste0(tf, '   ', signif(score[score$TF == tf, 'MinMax'], 3)))
+  return(p)
+}
+
+
+clust_order_asc<-names(sort(apply(MinMax_clust, 2, mean)))
+MinMax_clust<-MinMax_clust[,clust_order_asc]
+MinMax_df <- as.data.frame(MinMax_clust)
+MinMax_df$driver <- rownames(MinMax_df)
+MinMax_df <- melt(MinMax_df,variable.name = "cluster_id")
+MinMax_clust_clean <- MinMax_clust[!rownames(MinMax_clust) %in% TF_2_remove,]
+
+pdf('./Plots/FigureS10.pdf', width=7.5, height=10)
+legend <- cowplot::get_legend(get_density(df_auc, MinMax_all, 'GATA3') + 
+                    theme(legend.position='top'))
+cowplot::plot_grid(
+  cowplot::plot_grid(
+    get_density(df_auc, MinMax_all, 'GATA3'),
+    get_density(df_auc, MinMax_all, 'RUNX3'),
+    get_density(df_auc, MinMax_all, 'STAT1'),
+    get_density(df_auc, MinMax_all, 'REL'),
+    get_density(df_auc, MinMax_all, 'RELA'),
+    get_density(df_auc, MinMax_all, 'JUNB'),
+    nrow=2),
+  legend,
+  cowplot::plot_grid(
+    get_density(df_auc, MinMax_all, 'STAT3'),
+    get_density(df_auc, MinMax_all, 'RFX5'),
+  ncol=2),
+  pheatmap(MinMax_clust_clean,color=plasma, fontsize=5, fontsize_col = 8, 
+          angle_col =45, treeheight_col=10, treeheight_row=10, silent=TRUE, 
+          border_color = NA, legend =FALSE)$gtable,
+ncol=1, nrow=4, rel_heights=c(2,0.1,1,2), labels = c('A', '', 'B', 'C'))
+dev.off()
+
+
+pdf('./Plots/FigureS10_2.pdf', width=7.5, height=10)
+legend <- cowplot::get_legend(get_density(df_auc, MinMax_all, 'GATA3') + 
+                    theme(legend.position='top'))
+cowplot::plot_grid(
+  cowplot::plot_grid(
+    cowplot::plot_grid(
+      get_density(df_auc, MinMax_all, 'GATA3'),
+      get_density(df_auc, MinMax_all, 'RUNX3'),
+      get_density(df_auc, MinMax_all, 'STAT1'),
+      get_density(df_auc, MinMax_all, 'REL'),
+      get_density(df_auc, MinMax_all, 'RELA'),
+      get_density(df_auc, MinMax_all, 'JUNB'),
+      nrow=3),
+    legend,
+    cowplot::plot_grid(
+      get_density(df_auc, MinMax_all, 'STAT3'),
+      get_density(df_auc, MinMax_all, 'RFX5'),
+    ncol=2),
+    nrow=3, ncol=1, rel_heights=c(2,0.1,1), labels=c('A', '', 'B')),
+pheatmap(MinMax_clust_clean,color=plasma, fontsize=5, fontsize_col = 8, 
+          angle_col =90, treeheight_col=10, treeheight_row=10, silent=TRUE, 
+          border_color = NA, legend =FALSE)$gtable,
+ncol=2, rel_widths =c(4,2), labels=c('', 'C'))
+dev.off()
+
+

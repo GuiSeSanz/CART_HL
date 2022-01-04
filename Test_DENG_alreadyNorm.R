@@ -47,8 +47,18 @@ get_umap_signature <- function(df, title){
     if(is.numeric(df$Signature)){
           plot <- plot + viridis::scale_color_viridis()
     }else{
-      plot <- plot + scale_color_manual(values=c(High = '#30A3CC', Low = '#FCB357'))
+      plot <- plot + scale_color_manual(values=c('High'='#30A3CC', 'Low'='#d3d3d3'))
     }
+    return(plot)
+}
+
+get_umap_HL <- function(df, title){
+    plot <- ggplot() + 
+    geom_point(df[df$Signature == 'Low',], mapping = aes(x=UMAP_1, y=UMAP_2, color= Signature),alpha=0.6) +
+    geom_point(df[df$Signature == 'High',], mapping = aes(x=UMAP_1, y=UMAP_2, color= Signature),alpha=0.8) + 
+    geom_point(alpha=0.9, size = 0.8) + 
+    ggprism::theme_prism() + ggtitle(title) +  labs(x = "UMAP 1", y = 'UMAP 2') +
+    theme(legend.position='none', plot.title = element_text(hjust = 0.5, size = 12),  axis.text=element_blank(), axis.ticks=element_blank()) + scale_color_manual(values=c('High'='#30A3CC', 'Low'='#d3d3d3'))
     return(plot)
 }
 
@@ -442,7 +452,8 @@ all_merged_int <- RunHarmony(all_merged, "sample")
 harmony_embeddings <- Embeddings(all_merged_int, 'harmony')
 all_merged_int <- RunUMAP(all_merged_int, reduction = "harmony",  dims = 1:PCA_dims)
 
-saveRDS(all_merged_int, paste0(PLOT_PATH, 'all_merged_int.rds'))
+# saveRDS(all_merged_int, paste0(PLOT_PATH, 'all_merged_int.rds'))
+all_merged_int <- readRDS('/home/sevastopol/data/gserranos/CART_HL/Plots/DENG_Tests/ac24/all_merged_int.rds')
 
  pdf('/home/sevastopol/data/gserranos/CART_HL/Plots/DENG_Tests/Test.pdf', height = 8)
     DimPlot(object = all_merged_int, reduction = "umap", pt.size = .1, group.by = "sample")
@@ -461,14 +472,14 @@ tmp_bin$Signature <- ifelse(tmp_bin$Signature  > 0, 'High', 'Low')
 coords_HL <- merge(coords, setNames(tmp_bin[, c('Row.names', 'Signature')], c('Row.names', 'BinScore')), by.x=0, by.y='Row.names')
 rownames(coords_HL) <- coords_HL$Row.names
 
-pdf('/home/sevastopol/data/gserranos/CART_HL/Plots/DENG_Tests/DENG_signatures.pdf', height = 8)
-cowplot::plot_grid(
-get_expression_signature("Genes_Activation.txt", normData, coords , 1.2, split_HL=F) + theme(strip.text = element_text(size=8)),
-get_expression_signature("Genes_Tonic.txt", normData, coords , 1.2, split_HL=F)+ theme(strip.text = element_text(size=8)),
-get_umap_signature(tmp , 'HL signature'),
-get_umap_signature(tmp_bin , 'HL bin') + theme(legend.position = "bottom"),
-ncol=2)
-dev.off()
+# pdf('/home/sevastopol/data/gserranos/CART_HL/Plots/DENG_Tests/DENG_signatures.pdf', height = 8)
+# cowplot::plot_grid(
+# get_expression_signature("Genes_Activation.txt", normData, coords , 1.2, split_HL=F) + theme(strip.text = element_text(size=8)),
+# get_expression_signature("Genes_Tonic.txt", normData, coords , 1.2, split_HL=F)+ theme(strip.text = element_text(size=8)),
+# get_umap_signature(tmp , 'HL signature'),
+# get_umap_signature(tmp_bin , 'HL bin') + theme(legend.position = "bottom"),
+# ncol=2)
+# dev.off()
 
 
 
@@ -515,9 +526,48 @@ dev.off()
 
 
 
-pdf('/home/sevastopol/data/gserranos/CART_HL/Plots/DENG_Tests/aaa.pdf')
-df <- as.data.frame(diamonds[order(diamonds$price, decreasing=TRUE), ])
-ggplot(data = df,aes(x=factor(cut),y=carat,colour=price)) + 
-geom_point(position=position_jitter(width=.4)) +
-scale_colour_gradientn(colours=c("grey20","orange","orange3"))
+pdf('/home/sevastopol/data/gserranos/CART_HL/Plots/DENG_Tests/FigureS9.pdf', height = 12, width=10)
+legend <- cowplot::get_legend(get_expression_signature("Genes_Activation.txt", normData, coords = coords_HL , 1.2, split_HL=T) + 
+															theme(legend.position = 'right'))
+cowplot::plot_grid(
+	cowplot::plot_grid(
+		NULL,
+		get_umap_HL(tmp_bin , 'HL bin') + theme(legend.position = "top", 
+												 legend.margin=margin(0,0,0,0),
+												 legend.box.margin=margin(-10,-10,-10,-10), 
+												 axis.title = element_blank()),
+		legend,
+	ncol=3, rel_widths = c(0.2, 1, 0.2)),
+	cowplot::plot_grid(
+		get_expression_signature("Genes_Activation.txt", normData, coords = coords_HL , 1.2, split_HL=T) + 
+								theme(strip.text = element_text(size=8)),
+		get_expression_signature("Genes_Tonic.txt", normData, coords = coords_HL , 1.2, split_HL=T) + 
+								theme(strip.text = element_text(size=8),
+									  axis.title.y = element_blank()),
+		ncol=2
+	),
+	cowplot::plot_grid(
+		get_umap(normData, 'CD4'),
+		get_umap(normData, 'PDCD1'),
+		get_umap(normData, 'HLA-DRA'),
+		get_umap(normData, 'GZMA'),
+		get_umap(normData, 'LAG3', 5),
+		get_umap(normData, 'CD8A'),
+		get_umap(normData, 'CCR7'),
+		get_umap(normData, 'GATA3'),
+		get_umap(normData, 'PRF1'),
+		get_umap(normData, 'TIGIT', 5),
+	nrow=2),
+nrow=3, rel_heights = c(1, 0.8,0.8))
 dev.off()
+
+
+
+
+
+# pdf('/home/sevastopol/data/gserranos/CART_HL/Plots/DENG_Tests/aaa.pdf')
+# df <- as.data.frame(diamonds[order(diamonds$price, decreasing=TRUE), ])
+# ggplot(data = df,aes(x=factor(cut),y=carat,colour=price)) + 
+# geom_point(position=position_jitter(width=.4)) +
+# scale_colour_gradientn(colours=c("grey20","orange","orange3"))
+# dev.off()
