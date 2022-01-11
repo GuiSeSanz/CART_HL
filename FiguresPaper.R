@@ -227,7 +227,7 @@ get_umap <- function(data, gene, upplim=NULL ){
 }
 
 get_violin <- function(data, title, cluster_color = color_list_populations){
-    tmp <- ggplot(data, aes(x=Cluster, y=Value)) + geom_violin(aes(fill=Cluster)) + 
+    tmp <- ggplot(data, aes(x=Cluster, y=Value)) + geom_violin(aes(fill=Cluster), scale = "width") + 
     theme_classic() + ggtitle(title) + theme(legend.position='none', axis.text=element_text(size=6)) + labs(y = 'Value') +
     scale_fill_manual(values=cluster_color)
     # hues::scale_fill_iwanthue() 
@@ -383,8 +383,8 @@ get_heatmap_bulk <- function(plotter, title){
 
 get_pca <- function(dataPCA, variation, color2plot){
     p = switch(color2plot, 
-    'HighLow' = ggplot(data=dataPCA, aes(x = PC1, y = PC2, color=HighLow)) + geom_point(size=7) + xlab(paste0("PC1: ", variation[1], "% variance")) + ylab(paste0("PC2: ", variation[2], "% variance")) + theme_bw() +  scale_color_manual(values=c('High'='#30A3CC', 'Low'='#FCB357')) + theme(legend.position='none', axis.text=element_blank(), axis.ticks=element_blank(), panel.grid = element_blank()) ,
-    'Donor'   = ggplot(data=dataPCA, aes(x = PC1, y = PC2, color=Donor)) + geom_point(size=7) + xlab(paste0("PC1: ", variation[1], "% variance")) + ylab(paste0("PC2: ", variation[2], "% variance")) + theme_bw()  + hues::scale_color_iwanthue() + theme(legend.position='none', axis.text=element_blank(), axis.ticks=element_blank(), panel.grid = element_blank()))
+    'HighLow' = ggplot(data=dataPCA, aes(x = PC1, y = PC2, color=HighLow)) + geom_point(size=6) + xlab(paste0("PC1: ", variation[1], "% variance")) + ylab(paste0("PC2: ", variation[2], "% variance")) + theme_bw() +  scale_color_manual(values=c('High'='#30A3CC', 'Low'='#FCB357')) + theme(legend.position='none', axis.text=element_blank(), axis.ticks=element_blank(), panel.grid = element_blank()) ,
+    'Donor'   = ggplot(data=dataPCA, aes(x = PC1, y = PC2, color=Donor)) + geom_point(size=6) + xlab(paste0("PC1: ", variation[1], "% variance")) + ylab(paste0("PC2: ", variation[2], "% variance")) + theme_bw()  + hues::scale_color_iwanthue() + theme(legend.position='none', axis.text=element_blank(), axis.ticks=element_blank(), panel.grid = element_blank()))
     return(p)
 }
 
@@ -501,7 +501,7 @@ get_venn <- function(data){
     return(venn)
 }
 
-def_getHeatmap_signature <- function(dataset, title){
+getHeatmap_signature <- function(dataset, title){
     GeneSets_HL <- readRDS('./Data/GeneSets_HL.rds')
     norm_matrix <- readRDS('./Data/Norm_counts_zscaled_rlog_HL.rds')
     sigGenes_symbol <-read.delim(file="./Data/signature/BatchK_CD8_SIGGenes_BASAL_BOTH_LowvsHigh.tsv",sep="\t",header=T)$sigGenes_symbol
@@ -544,7 +544,7 @@ def_getHeatmap_signature <- function(dataset, title){
     return(pm)
 }
 
-def_getHeatmap_signature_OneForAll <- function(datasetList, datasetNames, CD=''){
+getHeatmap_signature_OneForAll <- function(datasetList, datasetNames, CD='', ann_lgd=TRUE, lgd=FALSE){
     get_gene_order <- function(mat, topVarGenes_HM){
         topVarGenes_HM_new <- data.frame(Gene = NULL, Dataset = NULL)
         for (ds in unique(topVarGenes_HM$Dataset)){
@@ -616,10 +616,10 @@ def_getHeatmap_signature_OneForAll <- function(datasetList, datasetNames, CD='')
            # cutree_rows = 2, 
            # cutree_cols = 3,
            fontsize_row = 4,
-           legend=FALSE,
+           legend=lgd,
            annotation_col=anno_col,
            annotation_colors=colors_ann,
-           annotation_legend=TRUE,
+           annotation_legend=ann_lgd,
            annotation_row = anno_row, 
            show_colnames = FALSE,
            show_rownames = TRUE,
@@ -645,16 +645,18 @@ get_plot_signature <- function(signature, data, cluster, signif=TRUE){
 
 get_boxplot <- function(gene, counts_norm, signif=TRUE){
     format_numbers <- function(l){
-        return(formatC(l, format = "G", digits = 2))
+        return(formatC(l, format = "G", digits = 1))
     }
     tmp <- counts_norm[rownames(counts_norm) == gene, ,drop=FALSE]
     tmp <- reshape2::melt(tmp)
     tmp$HighLow <- ifelse(stringr::str_detect( as.character(tmp$variable),'High'), 'High', 'Low' )
-    p <- ggplot(tmp, aes(x=HighLow, y=value, fill=HighLow)) + geom_boxplot(alpha=0.8) + ggprism::theme_prism() + scale_fill_manual(values=c('High'='#30A3CC', 'Low'='#FCB357'))+ labs(y='Expression', title=gene) + scale_y_continuous(labels = format_numbers) +  
+    p <- ggplot(tmp, aes(x=HighLow, y=value, fill=HighLow)) + geom_boxplot(alpha=0.8) + ggprism::theme_prism() + 
+    scale_fill_manual(values=c('High'='#30A3CC', 'Low'='#FCB357'))+ labs( title=gene) + 
+    scale_y_continuous(labels = format_numbers) +  
     theme(legend.position='none', 
     axis.title.x = element_blank(), 
-    axis.title.y = element_text(size=18), 
-    axis.text.y = element_text(size=12), 
+    axis.title.y = element_blank(), 
+    axis.text.y = element_text(size=10), 
     plot.title = element_text(hjust = 0, size = 10), 
     plot.subtitle=element_text(hjust = 0)) 
     if (signif){
@@ -836,11 +838,14 @@ percentVar_Bulk = round(100 * (pca$sdev^2 / sum( pca$sdev^2 ) ))
 # , labels= c('Activation', 'Tonic', 'Prolif'), nrow=2)
 # dev.off()
 
-bm <- useMart( biomart = "ENSEMBL_MART_ENSEMBL", 
-                dataset = "hsapiens_gene_ensembl")
-HLA_DRA <- get_peaks(6, 32432985, 32449203, 'CD8','/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D14_High_CD8_d0.sort.rmdup.rmblackls.rmchr.norm.bw',  '/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D8a_Low_CD8_S8.sort.rmdup.rmblackls.rmchr.norm.bw', filter_genes = c('HLA-DRA'), MIN= 0, MAX=4)
-CTLA4   <- get_peaks(2, 203865466, 203876964, 'CD8','/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D14_High_CD8_d0.sort.rmdup.rmblackls.rmchr.norm.bw',  '/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D9_Low_CD8_S14.sort.rmdup.rmblackls.rmchr.norm.bw', filter_genes = c('CTLA4'), MIN= 0, MAX=4)
-MCM3   <- get_peaks(6, 52254317, 52319190, 'CD8','/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D14_High_CD8_d0.sort.rmdup.rmblackls.rmchr.norm.bw',  '/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D9_Low_CD8_S14.sort.rmdup.rmblackls.rmchr.norm.bw', filter_genes = c('MCM3'), MIN= 0, MAX=4)
+# bm <- useMart( biomart = "ENSEMBL_MART_ENSEMBL", 
+#                 dataset = "hsapiens_gene_ensembl")
+# HLA_DRA <- get_peaks(6, 32432985, 32449203, 'CD8','/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D14_High_CD8_d0.sort.rmdup.rmblackls.rmchr.norm.bw',  '/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D8a_Low_CD8_S8.sort.rmdup.rmblackls.rmchr.norm.bw', filter_genes = c('HLA-DRA'), MIN= 0, MAX=4)
+# CTLA4   <- get_peaks(2, 203865466, 203876964, 'CD8','/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D14_High_CD8_d0.sort.rmdup.rmblackls.rmchr.norm.bw',  '/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D9_Low_CD8_S14.sort.rmdup.rmblackls.rmchr.norm.bw', filter_genes = c('CTLA4'), MIN= 0, MAX=4)
+# MCM3   <- get_peaks(6, 52254317, 52319190, 'CD8','/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D14_High_CD8_d0.sort.rmdup.rmblackls.rmchr.norm.bw',  '/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D9_Low_CD8_S14.sort.rmdup.rmblackls.rmchr.norm.bw', filter_genes = c('MCM3'), MIN= 0, MAX=4)
+
+MCM3  <- '/home/sevastopol/data/gserranos/CART_HL/Plots/MCM36_52254317_52319190_CD8_tmp.pdf'
+CTLA4 <- '/home/sevastopol/data/gserranos/CART_HL/Plots/CTLA42_203865466_203876964_CD8_tmp.pdf'
 
 peaks_CD8 <- read.table('/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/results/cd8_Lowd0_vs_Highd0_csaw_denovo_trended-windows_allcounts_Annotated.txt', sep="\t", header=T, fill=TRUE)
 peaks_CD8 <- peaks_CD8[grepl('^chr', peaks_CD8$seqnames),]
@@ -850,7 +855,7 @@ peaks_CD8 <- ChIPseeker::annotatePeak(peaks_CD8, tssRegion=c(-3000, 3000),TxDb=a
 
 DE_Genes_CD8 <- read.table('/home/sevastopol/data/gserranos/CART_HL/Data/signature/BatchK_CD8_output_BASAL_BOTH_LowvsHigh.tsv', sep='\t', header=TRUE, stringsAsFactors=FALSE)[,1:6]
 DE_peaks_CD8 <- read.delim("/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/results/cd8_Lowd0_vs_Highd0_csaw_denovo_trended_csaw-windows_significant_Annotated.txt", sep="\t", header=T)
-ven_list_CD8 = list('Bulk RNA' = unique(DE_Genes_CD8[DE_Genes_CD8$padj < 0.05 ,'GeneID']), 'ATAC RNA' = unique(as.character(DE_peaks_CD8$SYMBOL)))
+ven_list_CD8 = list('RNA-seq' = unique(DE_Genes_CD8[DE_Genes_CD8$padj < 0.05 ,'GeneID']), 'ATAC-seq' = unique(as.character(DE_peaks_CD8$SYMBOL)))
 
 
 
@@ -863,7 +868,7 @@ cowplot::plot_grid(
             get_pca(pcaData_atac, percentVar_atac, 'HighLow')+ ggtitle('ATAC-seq'), 
             lgnd, 
         ncol=1, rel_heights=c(1,1,0.2)),
-        def_getHeatmap_signature_OneForAll(c('Genes_Activation', 'Genes_Tonic'), 
+        getHeatmap_signature_OneForAll(c('Genes_Activation', 'Genes_Tonic'), 
                                         c('Activation', 'Tonic signal'))$gtable,
     ncol=2, rel_widths=c(2,2))
     ,
@@ -883,9 +888,49 @@ cowplot::plot_grid(
 ,nrow=3, rel_heights=c(3, 2, 2))
 dev.off()
 
-pdf('./Plots/FigureS5_CD8supp.pdf')
-get_pie_Annot(peaks_CD8)
+pdf('./Plots/Figure2_CD8.pdf', 12, 18)
+lgnd <- cowplot::get_legend(get_pca(pcaData_Bulk, percentVar_Bulk, 'HighLow')+ theme(legend.position='bottom'))
+cowplot::plot_grid(
+    cowplot::plot_grid(
+            cowplot::plot_grid(
+                get_pca(pcaData_Bulk, percentVar_Bulk, 'HighLow') + ggtitle('RNA-seq'), 
+                get_pca(pcaData_atac, percentVar_atac, 'HighLow')+ ggtitle('ATAC-seq'), 
+                lgnd, 
+            ncol=1, rel_heights=c(1,1,0.2)),
+            getHeatmap_signature_OneForAll(c('Genes_Activation', 'Genes_Tonic'), 
+                                            c('Activation', 'Tonic signal'), ann_lgd=FALSE)$gtable,
+            cowplot::plot_grid(
+                            get_boxplot('HLA-DRA', counts_norm),
+                            get_boxplot('CD74', counts_norm)    + theme(axis.title.y=element_blank()),
+                            get_boxplot('TNFRSF4', counts_norm) + theme(axis.title.y=element_blank()),
+                            get_boxplot('TNFRSF9', counts_norm) + theme(axis.title.y=element_blank()),
+            ncol=2),
+    ncol=3, rel_heights=c(2, 1, 3.5)),
+    cowplot::plot_grid(
+            get_venn(ven_list_CD8)+ scale_y_continuous(limits = c(-1, 1.5)), 
+    
+        cowplot::plot_grid(
+                cowplot::ggdraw() + cowplot::draw_image(magick::image_read_pdf(MCM3, density = 600)), 
+                cowplot::ggdraw() + cowplot::draw_image(magick::image_read_pdf(CTLA4, density = 600)),
+        ncol=2)
+    , ncol=2, rel_widths=c(1,2)),
+nrow=2)
+
 dev.off()
+
+pdf('./Plots/Figure2_legend.pdf', 12, 18)
+cowplot::plot_grid(getHeatmap_signature_OneForAll(c('Genes_Activation', 'Genes_Tonic'), 
+                                            c('Activation', 'Tonic signal'), ann_lgd=TRUE, lgd =TRUE)$gtable)
+dev.off()
+
+
+
+
+
+
+# pdf('./Plots/FigureS5_CD8supp.pdf')
+# get_pie_Annot(peaks_CD8)
+# dev.off()
 
 
 #### CD4 
@@ -943,6 +988,9 @@ HLA_DRA_cd4 <- get_peaks(6, 32432985, 32449203, 'CD4','/home/sevastopol/data/mca
 CTLA4_cd4   <- get_peaks(2, 203865466, 203876964, 'CD4','/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D14_High_CD4_d0.sort.rmdup.rmblackls.rmchr.norm.bw',  '/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D9_Low_CD4_S13.sort.rmdup.rmblackls.rmchr.norm.bw', filter_genes = c('CTLA4'), MAX=4)
 MCM3_cd4   <- get_peaks(6, 52254317, 52319190, 'CD4','/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D14_High_CD4_d0.sort.rmdup.rmblackls.rmchr.norm.bw',  '/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/data/edited/BigWig/D9_Low_CD4_S13.sort.rmdup.rmblackls.rmchr.norm.bw', filter_genes = c('MCM3'), MAX=5)
 
+MCM3_cd4  <- '/home/sevastopol/data/gserranos/CART_HL/Plots/MCM36_52254317_52319190_CD4_tmp.pdf'
+CTLA4_cd4 <- '/home/sevastopol/data/gserranos/CART_HL/Plots/CTLA42_203865466_203876964_CD4_tmp.pdf'
+
 peaks_CD4 <- read.table('/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/results/Lowd0_vs_Highd0_csaw_denovo_trended-windows_allcounts_Annotated.txt', sep="\t", header=T, fill=TRUE)
 peaks_CD4 <- peaks_CD4[grepl('^chr', peaks_CD4$seqnames),]
 peaks_CD4 <- makeGRangesFromDataFrame(peaks_CD4)
@@ -963,7 +1011,7 @@ cowplot::plot_grid(
             get_pca(pcaData_atac, percentVar_atac, 'HighLow')+ ggtitle('ATAC-seq'), 
             lgnd, 
         ncol=1, rel_heights=c(1,1,0.2)),
-        def_getHeatmap_signature_OneForAll(c('Genes_Activation', 'Genes_Tonic'), 
+        getHeatmap_signature_OneForAll(c('Genes_Activation', 'Genes_Tonic'), 
                                         c('Activation', 'Tonic signal'), CD='_CD4')$gtable,
     ncol=2, rel_widths=c(2,2))
     ,
@@ -981,6 +1029,37 @@ cowplot::plot_grid(
             cowplot::ggdraw() + cowplot::draw_image(magick::image_read_pdf(CTLA4_cd4, density = 600)),
     ncol=2, labels=c('MCM3', 'CTLA4'), align = 'v', hjust=0, vjust= 5,label_size=12)
 ,nrow=3, rel_heights=c(3, 2, 2))
+dev.off()
+
+
+pdf('./Plots/Figure2_CD4.pdf', 12, 18)
+lgnd <- cowplot::get_legend(get_pca(pcaData_Bulk, percentVar_Bulk, 'HighLow')+ theme(legend.position='bottom'))
+cowplot::plot_grid(
+    cowplot::plot_grid(
+            cowplot::plot_grid(
+                get_pca(pcaData_Bulk, percentVar_Bulk, 'HighLow') + ggtitle('RNA-seq'), 
+                get_pca(pcaData_atac, percentVar_atac, 'HighLow')+ ggtitle('ATAC-seq'), 
+                lgnd, 
+            ncol=1, rel_heights=c(1,1,0.2)),
+            getHeatmap_signature_OneForAll(c('Genes_Activation', 'Genes_Tonic'), 
+                                            c('Activation', 'Tonic signal'), CD ='_CD4',ann_lgd=FALSE)$gtable,
+            cowplot::plot_grid(
+                            get_boxplot('HLA-DRA', counts_norm),
+                            get_boxplot('CD74', counts_norm)    + theme(axis.title.y=element_blank()),
+                            get_boxplot('TNFRSF4', counts_norm) + theme(axis.title.y=element_blank()),
+                            get_boxplot('TNFRSF9', counts_norm) + theme(axis.title.y=element_blank()),
+            ncol=2),
+    ncol=3, rel_heights=c(2, 1, 3.5)),
+    cowplot::plot_grid(
+            get_venn(ven_list_CD4)+ scale_y_continuous(limits = c(-1, 1.5)), 
+    
+        cowplot::plot_grid(
+                cowplot::ggdraw() + cowplot::draw_image(magick::image_read_pdf(MCM3_cd4, density = 600)), 
+                cowplot::ggdraw() + cowplot::draw_image(magick::image_read_pdf(CTLA4_cd4, density = 600)),
+        ncol=2)
+    , ncol=2, rel_widths=c(1,2)),
+nrow=2)
+
 dev.off()
 
 pdf('./Plots/FigureS5_CD4supp.pdf')
@@ -1075,14 +1154,10 @@ pdf('./Plots/FigureS7.pdf',height=12, width=10)
     tmp <- setNames(as.data.frame(rds_unfiltered$donor), 'Donor')
     tmp$cell_id <- sub('-', '.', rownames(tmp))
     tmp <- merge(coords, tmp, by='cell_id')
-    cowplot::plot_grid(  
-        cowplot::plot_grid(   
+    cowplot::plot_grid(
+        cowplot::plot_grid(
             cowplot::plot_grid(
                 ggplot(coords_unfiltered, aes(x=UMAP_1, y=UMAP_2, color= Cluster)) + geom_point(alpha=0.9, size = 0.5) + scale_color_manual(values=color_list_all_stripped[0:length(unique(coords_unfiltered$Cluster))]) + theme_void() + theme(legend.position='right', plot.title = element_text(hjust = 0.5)) + ggtitle('Populations') + guides(color = guide_legend(override.aes = list(size=3, alpha =1))), 
-                # cowplot::plot_grid(
-                #     ggplot(tmp, aes(x=UMAP_1, y=UMAP_2, color= Cluster)) + geom_point(alpha=0.9, size = 0.5) + scale_color_manual(values=color_list_populations) + theme_void() + theme(legend.position='none', plot.title = element_text(hjust = 0.5)) + ggtitle('Populations by donor') + guides(color = guide_legend(override.aes = list(size=5)))  + facet_wrap(~Donor)
-                # ), 
-                # contribution,
                 contribution2,
                 nrow=2, rel_heights=c(2,1)
             ),
@@ -1092,11 +1167,11 @@ pdf('./Plots/FigureS7.pdf',height=12, width=10)
                 cluster_20_CD3D,
                 nrow=3)
         , ncol=2, rel_widths=c(4,3)),
-        cowplot::plot_grid( cluster_20_CD8A,
+        cowplot::plot_grid( cluster_20_CD8A, 
+                            NULL,
                             cluster_20_CD4,
-                        ncol=2),
+                        ncol=3, rel_widths=c(2,0.6,2)),
     nrow=2, rel_heights=c(3,1))
-        
 dev.off()
 
 
@@ -1200,18 +1275,18 @@ pdf('./Plots/Figure4.pdf', width=7.5, height=10)
             cowplot::plot_grid(
                 cowplot::plot_grid( 
                     plot_name("C6.CD4 Activated"), 
-                    get_plot_signature("Genes_Activation.txt", normData, "C6.CD4 Activated")+ labs(title = "Activation genes")+ theme(plot.title = element_text(size = 8)),
-                    get_plot_signature("Genes_Tonic.txt",      normData, "C6.CD4 Activated")+ labs(title = "Tonic signal")+ theme(plot.title = element_text(size = 8)),
+                    get_plot_signature("Genes_Activation.txt", normData, "C6.CD4 Activated")+ labs(title = "Activation genes")+ theme(plot.title = element_text(size = 8), axis.ticks.x=element_blank(),axis.text.x=element_blank() ),
+                    get_plot_signature("Genes_Tonic.txt",      normData, "C6.CD4 Activated")+ labs(title = "Tonic signal")+ theme(plot.title = element_text(size = 8), axis.ticks.x=element_blank(),axis.text.x=element_blank()  ),
                 ncol=3, rel_widths=c(0.2,1,1)),
                 cowplot::plot_grid( 
                     plot_name("C8.CD8 Cytotoxic"), 
-                    get_plot_signature("Genes_Activation.txt", normData, "C8.CD8 Cytotoxic"),
-                    get_plot_signature("Genes_Tonic.txt",      normData, "C8.CD8 Cytotoxic"),
+                    get_plot_signature("Genes_Activation.txt", normData, "C8.CD8 Cytotoxic") + theme(axis.ticks.x=element_blank(),axis.text.x=element_blank() ),
+                    get_plot_signature("Genes_Tonic.txt",      normData, "C8.CD8 Cytotoxic")+ theme(axis.ticks.x=element_blank(),axis.text.x=element_blank() ),
                 ncol=3, rel_widths=c(0.2,1,1)),
                 cowplot::plot_grid( 
-                    plot_name("C6.CD4 Activated"), 
-                    get_plot_signature("Genes_Activation.txt", normData, "C6.CD4 Activated"),
-                    get_plot_signature("Genes_Tonic.txt",      normData, "C6.CD4 Activated"),
+                    plot_name("C9.CD8 Cytotoxic (late)"), 
+                    get_plot_signature("Genes_Activation.txt", normData, "C9.CD8 Cytotoxic (late)"),
+                    get_plot_signature("Genes_Tonic.txt",      normData, "C9.CD8 Cytotoxic (late)"),
                 ncol=3, rel_widths=c(0.2,1,1)),
             ncol=1),
         ncol=2)    
@@ -2214,6 +2289,7 @@ metadata <- read.table('./Data/METADATA_JRR.csv', sep=',' , header=TRUE)
 test_CD4 <- apply_signature(bulkNormalized, CD4_signature, CD4_signature_genes,  metadata)
 test_CD8 <- apply_signature(bulkNormalized, CD8_signature, CD8_signature_genes,  metadata)
 
+
 # data_2_JR <- merge(setNames(test_CD4[, c('High_pondered_bin', 'High_pondered', 'cell_id')] , 
 #                                        c('CD4_Signature_bin', 'CD4_Signature', 'Patient_id')), 
 #                    setNames(test_CD8[, c('High_pondered_bin', 'High_pondered', 'cell_id')] , 
@@ -2234,6 +2310,10 @@ deng_cd8$OS <- ifelse(deng_cd8$OS == 'NR', 'PR/NR', 'CR/PRTD')
 deng_cd4$Original_OS <-  deng_cd4$OS 
 deng_cd4[deng_cd4$Sample == 'ac06','Original_OS'] <- 'NE'
 deng_cd4$OS <- ifelse(deng_cd4$OS == 'NR', 'PR/NR', 'CR/PRTD')
+write.csv(check_outliers(deng_cd4[deng_cd4$variable == 'High',]), './Plots/DENG_CD4_results.csv', quote=FALSE, row.names=FALSE)
+write.csv(check_outliers(deng_cd8[deng_cd8$variable == 'High',]), './Plots/DENG_CD8_results.csv', quote=FALSE, row.names=FALSE)
+write.csv(refactor_OS(test_CD4), './Plots/FRAIETTA_CD4_results.csv', quote=FALSE, row.names=FALSE)
+write.csv(refactor_OS(test_CD8), './Plots/FRAIETTA_CD8_results.csv', quote=FALSE, row.names=FALSE)
 
 sCR <- data.frame(percentCells = c(11.4893617, 16.0051769, 17.0352439, 
                                     23.2046639, 32.0200729, 33.3333333, 
