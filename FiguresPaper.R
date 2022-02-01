@@ -671,7 +671,8 @@ get_densities <- function(driver, cluster, title=NA){
     p <- ggplot(plotter2[plotter2$driver ==driver,], aes(x=value, fill=.id)) + 
     geom_density(alpha = 0.6, adjust = 1/8) + ggprism::theme_prism() + xlim(0,1)+
     scale_fill_manual( values=c('#30A3CC', '#bfbfbf')) +
-    theme(legend.position = 'none',plot.title = element_text(hjust = 0, size = 12), axis.title.x = element_blank(), axis.title.y = element_blank())
+    theme(legend.position = 'none', plot.title = element_text(hjust = 0, size = 12), axis.title.x = element_blank(), 
+	axis.title.y = element_blank(), axis.text.x = element_text(size=8), axis.text.y = element_text(size=8))
     if(!is.na(title)){
         p <- p + ggtitle(title)
     }
@@ -825,18 +826,10 @@ pcaData_Bulk$HighLow <- stringr::str_extract(pcaData_Bulk$sample, '(?<=_)[A-Za-z
 pcaData_Bulk$Donor <- stringr::str_extract(pcaData_Bulk$sample, '^[A-Z0-9]+')
 percentVar_Bulk = round(100 * (pca$sdev^2 / sum( pca$sdev^2 ) ))
 
-# pca_components <- pca$rotation[,1:2]
-# PC1 <- names(head(pca_components[order(pca_components[,'PC1'], decreasing = TRUE),1], 100)) 
-# PC2 <- names(head(pca_components[order(pca_components[,'PC2'], decreasing = TRUE),1], 100))
-# signatures_path <- '/home/sevastopol/data/gserranos/CART_HL/Data/signature/OtherSignatures'
+xlsx::write.xlsx(pcaData_Bulk, file = './Plots/pcaData_Bulk_cd8.xlsx', sheetName = 'pcaData_Bulk')
+xlsx::write.xlsx(pcaData_atac, file = './Plots/pcaData_ATAC_cd8.xlsx', sheetName = 'pcaData_ATAC')
+xlsx::write.xlsx(counts_norm[c('HLA-DRA','CD74','TNFRSF4','TNFRSF9'), ], file = './Plots/boxplot_data_cd8.xlsx', sheetName = 'values_2_plot')
 
-# pdf('./Plots/Venn_signaturesVsPCA.pdf')
-# cowplot::plot_grid(
-#     get_venn(list(PC1 = unique(PC1), PC2 = unique(PC2), signature = unique(as.character(read.table(paste0(signatures_path, '/', 'Genes_Activation.txt'))$V1)))),
-#     get_venn(list(PC1 = unique(PC1), PC2 = unique(PC2), signature = unique(as.character(read.table(paste0(signatures_path, '/', 'Genes_Tonic.txt'))$V1)))),
-#     get_venn(list(PC1 = unique(PC1), PC2 = unique(PC2), signature = unique(as.character(read.table(paste0(signatures_path, '/', 'Genes_Prolif.txt'))$V1))))
-# , labels= c('Activation', 'Tonic', 'Prolif'), nrow=2)
-# dev.off()
 
 # bm <- useMart( biomart = "ENSEMBL_MART_ENSEMBL", 
 #                 dataset = "hsapiens_gene_ensembl")
@@ -857,6 +850,12 @@ DE_Genes_CD8 <- read.table('/home/sevastopol/data/gserranos/CART_HL/Data/signatu
 DE_peaks_CD8 <- read.delim("/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/results/cd8_Lowd0_vs_Highd0_csaw_denovo_trended_csaw-windows_significant_Annotated.txt", sep="\t", header=T)
 ven_list_CD8 = list('RNA-seq' = unique(DE_Genes_CD8[DE_Genes_CD8$padj < 0.05 ,'GeneID']), 'ATAC-seq' = unique(as.character(DE_peaks_CD8$SYMBOL)))
 
+
+cols_2_keep <-  c('annotation', 'ENSEMBL', 'transcriptId', 'SYMBOL', 'logFC', 'logCPM', 'FDR', 'PValue')
+DE_peaks_CD8 <- read.delim("/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/results/cd8_Lowd0_vs_Highd0_csaw_denovo_trended_csaw-windows_significant_Annotated.txt", sep="\t", header=T)
+xlsx::write.xlsx(DE_peaks_CD8[, cols_2_keep], file = './Plots/Supplementary_table_DE_peaks.xlsx', sheetName = 'CD8')
+DE_peaks_CD4 <- read.delim("/home/sevastopol/data/mcallejac/ATAC_HighLow_ALL/results/Lowd0_vs_Highd0_csaw_denovo_trended_csaw-windows_significant_Annotated.txt", sep="\t", header=T)
+xlsx::write.xlsx(DE_peaks_CD4[,cols_2_keep], file = './Plots/Supplementary_table_DE_peaks.xlsx', sheetName = 'CD4', append=TRUE)
 
 
 pdf('./Plots/Figure2_CD8.pdf', width=10, height=15)
@@ -973,6 +972,12 @@ pca_components <- pca$rotation[,1:2]
 PC1 <- names(head(pca_components[order(pca_components[,'PC1'], decreasing = TRUE),1], 100)) 
 PC2 <- names(head(pca_components[order(pca_components[,'PC2'], decreasing = TRUE),1], 100))
 signatures_path <- '/home/sevastopol/data/gserranos/CART_HL/Data/signature/OtherSignatures'
+
+
+
+xlsx::write.xlsx(pcaData_Bulk, file = './Plots/pcaData_Bulk_cd4.xlsx', sheetName = 'pcaData_Bulk')
+xlsx::write.xlsx(pcaData_atac, file = './Plots/pcaData_ATAC_cd4.xlsx', sheetName = 'pcaData_ATAC')
+xlsx::write.xlsx(counts_norm[c('HLA-DRA','CD74','TNFRSF4','TNFRSF9'), ], file = './Plots/boxplot_data_cd4.xlsx', sheetName = 'values_2_plot')
 
 # pdf('./Plots/Venn_signaturesVsPCA_CD4.pdf')
 # cowplot::plot_grid(
@@ -1476,6 +1481,7 @@ pm <- pheatmap::pheatmap(MinMax_clust[, c('C3.CD8 Memory', 'C8.CD8 Cytotoxic', '
 NR4A1_net <- cowplot::ggdraw() + cowplot::draw_image('./Plots/NR4A1_net.png')
 RFX5_net  <- cowplot::ggdraw() + cowplot::draw_image('./Plots/RFX5_net.png')
 SATB1_net <- cowplot::ggdraw() + cowplot::draw_image('./Plots/SATB1_net.png')
+MAF_net <- cowplot::ggdraw() + cowplot::draw_image('./Plots/MAF_net.png')
 
 # pdf('./Plots/Figure5.pdf', 12, 15)
 # cowplot::plot_grid(
@@ -1500,15 +1506,18 @@ SATB1_net <- cowplot::ggdraw() + cowplot::draw_image('./Plots/SATB1_net.png')
 pdf('./Plots/Figure5.pdf', 8, 7)
 cowplot::plot_grid(
         cowplot::plot_grid(
-            plot_name('NR4A1'), get_densities('NR4A1' , 'C3.CD8 Memory', 'C3.CD8 Memory'), get_densities('NR4A1' , 'C8.CD8 Cytotoxic', 'C8.CD8 Cytotoxic'), get_densities('NR4A1' , 'C9.CD8 Cytotoxic (late)', 'C9.CD8 Cytotoxic (late)') ,NR4A1_net, 
+            plot_name('RFX5'), get_densities('RFX5'  , 'C3.CD8 Memory', 'C3.CD8 Memory'), get_densities('RFX5'  , 'C8.CD8 Cytotoxic', 'C8.CD8 Cytotoxic'), get_densities('RFX5'  , 'C9.CD8 Cytotoxic (late)', 'C9.CD8 Pre-exhausted'),RFX5_net, 
         nrow=1,rel_widths=c(1,5,5,5,5)),
         cowplot::plot_grid(
-            plot_name('RFX5'), get_densities('RFX5'  , 'C3.CD8 Memory'), get_densities('RFX5'  , 'C8.CD8 Cytotoxic'), get_densities('RFX5'  , 'C9.CD8 Cytotoxic (late)'),RFX5_net, 
+            plot_name('NR4A1'), get_densities('NR4A1' , 'C3.CD8 Memory'), get_densities('NR4A1' , 'C8.CD8 Cytotoxic', 'C8.CD8 Cytotoxic'), get_densities('NR4A1' , 'C9.CD8 Cytotoxic (late)',) ,NR4A1_net, 
+        nrow=1,rel_widths=c(1,5,5,5,5)),
+		cowplot::plot_grid(
+            plot_name('MAF'), get_densities('MAF' , 'C3.CD8 Memory'), get_densities('MAF' , 'C8.CD8 Cytotoxic'), get_densities('MAF' , 'C9.CD8 Cytotoxic (late)'),MAF_net,  
         nrow=1,rel_widths=c(1,5,5,5,5)),
         cowplot::plot_grid(
             plot_name('SATB1'), get_densities('SATB1' , 'C3.CD8 Memory'), get_densities('SATB1' , 'C8.CD8 Cytotoxic'), get_densities('SATB1' , 'C9.CD8 Cytotoxic (late)'),SATB1_net,  
         nrow=1,rel_widths=c(1,5,5,5,5))
-    ,nrow=3)
+    ,nrow=4)
 dev.off()
  
 

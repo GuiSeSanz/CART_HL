@@ -330,7 +330,7 @@ print(gridExtra::grid.table(stats))
 dev.off()
 
 
-normData <- as.data.frame(t(rds_test@assays$SCT@scale.data))
+normData <- as.data.frame(t(rds_test@assays$SCT@data))
 get_markers <- function(data, genelist){
     tmp <- data[, genelist]
     tmp$cell_id <- rownames(tmp)

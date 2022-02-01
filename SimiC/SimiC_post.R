@@ -83,8 +83,8 @@ for(phenotype in phenotypes){
     SimiC_weights_df <- rbind(SimiC_weights_df, tmp)
 }
 
-Paula_list <- c('NR4A1', 'BATF', 'ARID5A', 'RFX5', 'SATB1', 'ATF5', 'NR4A1', 'ZBTB7B', 'EED' )
-data_2_nets <- SimiC_weights_df[SimiC_weights_df$driver %in% c('NR4A1', 'BATF', 'ARID5A', 'RFX5', 'SATB1', 'ATF5', 'NR4A1', 'ZBTB7B', 'EED' ) & SimiC_weights_df$value != 0, c('.id', 'driver', 'target', 'value')]
+Paula_list <- c('NR4A1', 'BATF', 'ARID5A', 'RFX5', 'SATB1', 'ATF5', 'NR4A1', 'ZBTB7B', 'EED', 'MAF')
+data_2_nets <- SimiC_weights_df[SimiC_weights_df$driver %in% Paula_list & SimiC_weights_df$value != 0, c('.id', 'driver', 'target', 'value')]
 write.table(data_2_nets, './Data/data_2_nets_V2.tsv', sep='\t', row.names=FALSE, quote=FALSE)
 
 pdf(paste0(plot_root_dir ,file_idx,'Simic_TF_weigths.pdf'), onefile = TRUE, width=20)
@@ -512,6 +512,13 @@ saveRDS(MinMax_clust, './Data/MinMax_clust.rds')
 saveRDS(MinMax_all, './Data/MinMax_all.rds')
 saveRDS(df_auc, './Data/SimiC_aucs.rds')
 
+
+MinMax_clust <- readRDS('./Data/MinMax_clust.rds')
+MinMax_all <- readRDS('./Data/MinMax_all.rds')
+df_auc <- readRDS('./Data/SimiC_aucs.rds')
+
+
+
 get_density <- function(data, score, tf){
   p <- ggplot(data[data$driver ==tf,], aes(x=value, fill=.id)) + 
   geom_density(alpha = 0.6, adjust = 1/8) + theme_classic() + 
@@ -529,31 +536,8 @@ MinMax_df$driver <- rownames(MinMax_df)
 MinMax_df <- melt(MinMax_df,variable.name = "cluster_id")
 MinMax_clust_clean <- MinMax_clust[!rownames(MinMax_clust) %in% TF_2_remove,]
 
+
 pdf('./Plots/FigureS10.pdf', width=7.5, height=10)
-legend <- cowplot::get_legend(get_density(df_auc, MinMax_all, 'GATA3') + 
-                    theme(legend.position='top'))
-cowplot::plot_grid(
-  cowplot::plot_grid(
-    get_density(df_auc, MinMax_all, 'GATA3'),
-    get_density(df_auc, MinMax_all, 'RUNX3'),
-    get_density(df_auc, MinMax_all, 'STAT1'),
-    get_density(df_auc, MinMax_all, 'REL'),
-    get_density(df_auc, MinMax_all, 'RELA'),
-    get_density(df_auc, MinMax_all, 'JUNB'),
-    nrow=2),
-  legend,
-  cowplot::plot_grid(
-    get_density(df_auc, MinMax_all, 'STAT3'),
-    get_density(df_auc, MinMax_all, 'RFX5'),
-  ncol=2),
-  pheatmap(MinMax_clust_clean,color=plasma, fontsize=5, fontsize_col = 8, 
-          angle_col =45, treeheight_col=10, treeheight_row=10, silent=TRUE, 
-          border_color = NA, legend =FALSE)$gtable,
-ncol=1, nrow=4, rel_heights=c(2,0.1,1,2), labels = c('A', '', 'B', 'C'))
-dev.off()
-
-
-pdf('./Plots/FigureS10_2.pdf', width=7.5, height=10)
 legend <- cowplot::get_legend(get_density(df_auc, MinMax_all, 'GATA3') + 
                     theme(legend.position='top'))
 cowplot::plot_grid(
@@ -579,3 +563,31 @@ ncol=2, rel_widths =c(4,2), labels=c('', 'C'))
 dev.off()
 
 
+
+pdf('./Plots/FigureS10_2.pdf', width=7.5, height=10)
+legend <- cowplot::get_legend(get_density(df_auc, MinMax_all, 'GATA3') + 
+                    theme(legend.position='top'))
+cowplot::plot_grid(
+	cowplot::plot_grid(
+	cowplot::plot_grid(
+		get_density(df_auc, MinMax_all, 'GATA3'),
+		get_density(df_auc, MinMax_all, 'RUNX3'),
+		get_density(df_auc, MinMax_all, 'STAT1'),
+		get_density(df_auc, MinMax_all, 'REL'),
+		get_density(df_auc, MinMax_all, 'RELA'),
+		get_density(df_auc, MinMax_all, 'JUNB'),
+		get_density(df_auc, MinMax_all, 'STAT3'),
+		get_density(df_auc, MinMax_all, 'ARID5A'),
+		get_density(df_auc, MinMax_all, 'BTG2'),
+		get_density(df_auc, MinMax_all, 'RFX5'),
+		get_density(df_auc, MinMax_all, 'NR4A1'),
+		get_density(df_auc, MinMax_all, 'MAF'),
+		ncol=3),
+	legend,
+	ncol=1, rel_heights=c(4,0.1)),
+	pheatmap(MinMax_clust_clean,color=plasma, fontsize=5, fontsize_col = 8, 
+          angle_col =45, treeheight_col=10, treeheight_row=10, silent=TRUE, 
+          border_color = NA, legend =FALSE)$gtable,
+	ncol=2, rel_widths =c(4,2)
+)
+dev.off()
