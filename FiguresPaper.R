@@ -1871,30 +1871,44 @@ folders <- list.files('/home/sevastopol/data/gserranos/CART_HL/Data/TCR_clonalit
 plotter <- data.frame(Var1 = NULL, Freq= NULL, Sample = NULL, BinScore= NULL)
 plotter_all <- data.frame(Var1 = NULL, Freq= NULL, Sample = NULL, BinScore= NULL)
 
+plotter_bis <-  data.frame(barcode = NULL, raw_clonotype_id= NULL, Sample = NULL, BinScore= NULL)
+
 for(folder in folders){
     print(folder)
     tcr <- read.table(paste0('/home/sevastopol/data/gserranos/CART_HL/Data/TCR_clonality/',folder,'/outs/filtered_contig_annotations.csv'), sep=',', header=TRUE)
 
     tcr_filtered <- unique(tcr[, c( 'barcode', 'raw_clonotype_id')])
     tcr_filtered <- tcr_filtered[tcr_filtered$raw_clonotype_id != '',]
-    n_cells <- nrow(tcr_filtered)
-    #check Top frequence Clonotype CDR3 Sequences
-    print(max(table(tcr_filtered$raw_clonotype_id)))
-    props <- as.data.frame(table(tcr_filtered$raw_clonotype_id))
-    props <- props[props$Freq !=0, ]
+    # n_cells <- nrow(tcr_filtered)
+    # #check Top frequence Clonotype CDR3 Sequences
+    # print(max(table(tcr_filtered$raw_clonotype_id)))
+    # props <- as.data.frame(table(tcr_filtered$raw_clonotype_id))
+    # props <- props[props$Freq !=0, ]
+    # props$Freq <- (props$Freq/n_cells)*100
+    # props$Sample <- folder
+    # plotter_all <- rbind(plotter_all, props)
+
+    # bin_high_low_tmp <- bin_high_low[bin_high_low$cell %in% tcr_filtered$barcode,]
+    # tcr_filtered <- merge(tcr_filtered, bin_high_low_tmp[, c('cell', 'BinScore')], by.x='barcode', by.y='cell')
+    # tcr_filtered$raw_clonotype_id <- as.character(tcr_filtered$raw_clonotype_id)
+
+    # props <- as.data.frame(table(tcr_filtered$raw_clonotype_id))
+    # props$Freq <- (props$Freq/n_cells)*100
+    # props$Sample <- folder
+    # props <- merge(props, tcr_filtered[, c('raw_clonotype_id', 'BinScore')], by.x='Var1', by.y='raw_clonotype_id')
+    # plotter <- rbind(plotter, props)
+
+	tcr_filtered <- tcr_filtered[tcr_filtered$barcode %in% bin_high_low$cell,]
+	props <- as.data.frame(table(as.character(tcr_filtered$raw_clonotype_id)))
+	n_cells <- nrow(tcr_filtered)
     props$Freq <- (props$Freq/n_cells)*100
     props$Sample <- folder
-    plotter_all <- rbind(plotter_all, props)
-
-    bin_high_low_tmp <- bin_high_low[bin_high_low$cell %in% tcr_filtered$barcode,]
-    tcr_filtered <- merge(tcr_filtered, bin_high_low_tmp[, c('cell', 'BinScore')], by.x='barcode', by.y='cell')
-    tcr_filtered$raw_clonotype_id <- as.character(tcr_filtered$raw_clonotype_id)
-
-    props <- as.data.frame(table(tcr_filtered$raw_clonotype_id))
-    props$Freq <- (props$Freq/n_cells)*100
-    props$Sample <- folder
-    props <- merge(props, tcr_filtered[, c('raw_clonotype_id', 'BinScore')], by.x='Var1', by.y='raw_clonotype_id')
-    plotter <- rbind(plotter, props)
+	props <- props[order(props$Freq, decreasing=TRUE),]
+	tcr_2_keep <- unique(props[1:100, 'Var1'])
+	a <- tcr[tcr$raw_clonotype_id %in% tcr_2_keep,]
+	a <- merge(a, bin_high_low[, c('cell', 'BinScore')], by.x='barcode', by.y='cell')
+	a$Sample <- folder
+	plotter_bis <- rbind(plotter_bis, a[, c('barcode', 'Sample', 'raw_clonotype_id',  'BinScore')])
 }
 
 
@@ -1904,7 +1918,24 @@ ggplot(plotter, aes(y=Freq, x=Sample, color=BinScore)) + geom_point(alpha=0.7) +
 ggplot(plotter, aes(y=Freq, x=Sample, fill=BinScore)) + geom_violin(alpha=0.7) + theme_classic()  + scale_fill_manual(values=c('#30A3CC', '#FCB357'))
 dev.off()
 
+plotter_bis$raw_clonotype_id <- as.character(plotter_bis$raw_clonotype_id)
+for(donor in unique(plotter_bis$Sample)){
+	print(donor)
+	for (i in seq_along(unique(plotter_bis[plotter_bis$Sample == donor,'raw_clonotype_id']))){
+		cltype <- unique(plotter_bis[plotter_bis$Sample == donor,'raw_clonotype_id'])[i]
+		plotter_bis[plotter_bis$Sample == donor & plotter_bis$raw_clonotype_id == cltype, 'raw_clonotype_id'] <- paste0( 'clonotype_', i)
+	}
+}
 
+pdf('./Plots/TCR_Clonality_bis.pdf')
+colors <- sample(colorRampPalette(ggthemes::tableau_color_pal('Classic 20')(20))(100))
+ggplot(plotter_bis, aes(x=Sample, fill = raw_clonotype_id)) + geom_bar(position='fill') + ggprism::theme_prism() + 
+theme(legend.position='none', axis.text.x=element_text(angle=45,hjust = 1, vjust=0.9)) + facet_wrap(~BinScore) + scale_fill_manual(values=colors)
+
+ggplot(plotter_bis, aes(x=BinScore, fill = raw_clonotype_id)) + geom_bar(position='fill') + ggprism::theme_prism() + 
+theme(legend.position='none', axis.text.x=element_text(angle=45,hjust = 1, vjust=0.9)) + facet_wrap(~Sample,  strip.position = "bottom",) + scale_fill_manual(values=colors)
+
+dev.off()
 
 all_folder_plotter <- data.frame(Clonotype=NULL, Freq=NULL, Sample=NULL)
 for(folder in folders){
@@ -2649,3 +2680,459 @@ Gene2               0.02332   1.02360  0.05813 0.40 0.69
 Gene3               0.00175   1.00175  0.06734 0.03 0.98
 Gene n.....
 """
+
+
+
+
+# Volcano plot
+
+reasults_CD8 <- read.table('/home/sevastopol/data/mcallejac/RNA_HighLow_ALL/figures/March_both_HL/BatchK_CD8_output_BASAL_BOTH_LowvsHigh.tsv', sep='\t', header=T)
+reasults_CD4 <- read.table('/home/sevastopol/data/mcallejac/RNA_HighLow_ALL/figures/March_both_HL/BatchK_CD4_output_BASAL_BOTH_LowvsHigh.tsv', sep='\t', header=T)
+
+plot_volcano <- function(data){
+  plot <- EnhancedVolcano::EnhancedVolcano(data,
+    # lab = reasults_CD8$GeneID,
+	lab=NA,
+    x = 'log2FoldChange',
+    y = 'pvalue',
+    title = 'CD8',
+	subtitle = "Low versus High",
+	legendPosition='right',
+    pCutoff = 0.05,
+    FCcutoff = 1,
+    pointSize = 1.5,
+	colAlpha = 0.8,
+	col=c('grey30', 'grey30', 'grey30', 'red2'),
+	caption='P-value < 0.05; log2FC > 1',
+    labSize = 6.0)
+	return(plot)
+}
+
+
+pdf('./Plots/Volcano_plots.pdf', width=8)
+	print(plot_volcano(reasults_CD8))
+	print(plot_volcano(reasults_CD4))
+dev.off()
+
+
+# heatmaps with SimiC regulons
+
+data <- read.table('/home/sevastopol/data/gserranos/CART_HL/SimiC/Data/All_nets_V2.tsv', sep="\t", header=T)
+df_auc <- readRDS('./SimiC/Data/SimiC_aucs.rds')
+
+
+# heatmaps with SimiC regulons
+for (CD in c('_CD4', '')){
+	norm_matrix <- as.data.frame(readRDS(paste0('./Data/Norm_counts_zscaled_rlog_HL',CD,'.rds')))
+	anno_col <- data.frame(Sample = colnames(norm_matrix))
+    anno_col$CellType <- ifelse(stringr::str_detect(anno_col$Sample, 'High'), 'High', 'Low')
+    # anno$Donor <- stringr::str_extract(anno$Sample, '^D[0-9]+')
+    rownames(anno_col) <- anno_col$Sample
+    anno_col$Sample <- NULL
+    colors_ann <- list(
+        'CellType' = c(High = '#30A3CC', Low = '#FCB357')
+    )
+	regs2plot <- c('RFX5', 'NR4A1', 'MAF', 'SATB1')
+	plots <- list()
+	for (reg in regs2plot){
+		targets <- as.character(unique((data[data$driver == reg, 'target'])))
+		targets <- c(targets, reg)
+		mat <- norm_matrix[ rownames(norm_matrix) %in% c(targets, reg), ]
+		anno_row <- data.frame(Genes = rownames(mat))
+		anno_row$Type <- ifelse(anno_row$Genes== reg,  'Driver', 'Target')
+		rownames(anno_row) <- anno_row$Genes
+		anno_row$Genes <- NULL
+		 pm <- pheatmap::pheatmap(mat, scale = "row",
+           treeheight_row=0, treeheight_col=0,
+           cluster_col = TRUE,cluster_row = TRUE,
+           color = viridis::viridis(50),
+           fontsize_row = 4,
+           legend=FALSE,
+           annotation_col=anno_col,
+           annotation_colors=colors_ann,
+           annotation_legend=FALSE,
+           show_colnames = FALSE,
+           show_rownames = TRUE,
+           silent=TRUE,
+           border_color='NA')
+		plots[[reg]] <- pm
+	}
+	if(CD == ''){
+		CD <- '_CD8'
+	}
+	pdf(paste0('./Plots/Regulon_HM_BULK', CD ,'.pdf'))
+	print(cowplot::plot_grid( plots[['RFX5']]$gtable, 
+						plots[['NR4A1']]$gtable, 
+						plots[['MAF']]$gtable, 
+						plots[['SATB1']]$gtable,
+					ncol=2, nrow=2, align = "hv", 
+					labels =  c('RFX5', 'NR4A1', 'MAF', 'SATB1')))
+	dev.off()
+}
+
+
+norm_data <- t(as.data.frame(t(rds_test@assays$RNA@data)))
+
+regs2plot <- c('RFX5', 'NR4A1', 'MAF', 'SATB1')
+cell2keep <- coords[coords$Cluster %in% c('C3.CD8 Memory', 'C8.CD8 Cytotoxic', 'C9.CD8 Cytotoxic (late)'), 'cell_id']
+
+anno_col <- coords[coords$cell_id %in% cell2keep, c('cell_id', 'BinScore', 'Cluster')]
+rownames(anno_col) <- sub('\\.','-',anno_col$cell_id)
+anno_col$cell_id <- NULL
+anno_col$Cluster <- ifelse(anno_col$Cluster == 'C3.CD8 Memory', 'C3.CD8_Memory', 
+					ifelse(anno_col$Cluster == 'C8.CD8 Cytotoxic', 'C8.CD8_Cytotoxic', 
+																	'C9.CD8_Cytotoxic_late'))
+colors_ann <- list(
+	'BinScore' = c(High = '#98C7DE', Low = '#D9D9D9'), 
+	'Cluster' = c(C3.CD8_Memory= "#440154FF", C8.CD8_Cytotoxic= "#21908CFF", C9.CD8_Cytotoxic_late= "#FDE725FF")
+)
+
+
+# this actually works but we'll try to manually group the Highs and Lows
+
+plots <- list()
+for (reg in regs2plot){
+	for (cluster in  c('C3.CD8 Memory', 'C8.CD8 Cytotoxic', 'C9.CD8 Cytotoxic (late)')){
+		print(reg)
+		# get the cells from the cluster
+		cell2keep_tmp <- sub('\\.', '-' ,coords[coords$Cluster == cluster, 'cell_id'])
+		# get the gene from the regulon
+		targets <- as.character(unique((data[data$driver == reg, 'target'])))
+		targets <- c(targets, reg)
+		mat <- norm_data[ rownames(norm_data) %in% c(targets, reg), ]
+		mat <- mat[, colnames(mat) %in% cell2keep_tmp]
+
+		# assign the colors 
+		anno_col <- coords[ sub('\\.', '-',coords$cell_id) %in% cell2keep_tmp, c('cell_id', 'BinScore', 'Cluster')]
+		rownames(anno_col) <- sub('\\.','-',anno_col$cell_id)
+		anno_col$cell_id <- NULL
+		anno_col$Cluster <- ifelse(anno_col$Cluster == 'C3.CD8 Memory', 'C3.CD8_Memory', 
+							ifelse(anno_col$Cluster == 'C8.CD8 Cytotoxic', 'C8.CD8_Cytotoxic', 
+																			'C9.CD8_Cytotoxic_late'))
+		# sort the matrix by HL
+		mat <- mat[, rownames(anno_col[order(anno_col$BinScore),])]
+		print(dim(mat))
+		pm <- pheatmap::pheatmap(mat, scale = "row",
+			treeheight_row=0, treeheight_col=0,
+			cluster_col = FALSE,cluster_row = TRUE,
+			color = viridis::viridis(50),
+		#    gaps_row = gap_indexes,
+			# cutree_rows = 2, 
+			# cutree_cols = 3,
+			fontsize_row = 4,
+			legend=FALSE,
+		#    annotation_row= anno_row,
+			annotation_col=anno_col,
+			annotation_colors=colors_ann,
+			annotation_legend=FALSE,
+			annotation_names_row = FALSE,
+			annotation_names_col = FALSE,
+		#    annotation_row = anno_row,
+			show_colnames = FALSE,
+			show_rownames = TRUE,
+			silent=TRUE,
+			border_color='NA')
+		plots[[paste0(reg, '_', gsub(' ' , '_',cluster))]] <- pm$gtable
+	}
+}
+
+pdf('./Plots/Regulon_HM_SC.pdf')
+print(cowplot::plot_grid( plotlist = plots,
+				ncol=3, nrow=4, align = "hv", 
+				labels =  names(plots)))
+dev.off()
+
+
+
+plot_boxplot_simic <- function(tf, norm_data, cluster, simicWs = data,  annotation = coords){
+	targets <- as.character(unique((simicWs[simicWs$driver == tf, 'target'])))
+	tmp <- norm_data[ rownames(norm_data) %in% c(targets, tf), ]
+	if (cluster != 'All'){
+		cell2keep_cluster <-  annotation[annotation$Cluster == cluster, 'cell_id']
+		cell2keep_cluster <-  sub('\\.', '-' , cell2keep_cluster)
+		tmp <- tmp[, colnames(tmp) %in% cell2keep_cluster]
+	}
+	tmp <- reshape2::melt(tmp)
+	tmp$Var2 <- sub( '-', '\\.',tmp$Var2)
+	# set order for printing first the TF
+	tmp$Var1 <- factor(tmp$Var1, levels=c(tf, targets))
+	tmp <- merge(tmp, annotation[, c('cell_id', 'BinScore')], by.x='Var2', by.y='cell_id')
+	cluster_name <- stringr::str_extract(cluster, '(?<=C[\\d]\\.)[\\w\\s]+')
+	# p <- ggplot(tmp, aes(x=Var1, y=value, fill=BinScore)) + geom_boxplot() +  ggprism::theme_prism() +
+	# scale_fill_manual(values=c(High = '#98C7DE', Low = '#D9D9D9')) + theme(axis.text.x = element_text(angle = 45, hjust = 1))
+	p <- ggplot(tmp, aes(x=BinScore, y=value, fill=BinScore)) + geom_boxplot() +  theme_classic() +
+	scale_fill_manual(values=c(High = '#98C7DE', Low = '#D9D9D9'))  + geom_hline(yintercept=-0.1) + 
+
+	ggsignif::geom_signif(comparisons = list(c("High", "Low")), map_signif_level = c("***"=0.001, "**"=0.01, "*"=0.05, " "=0.1, "  "=1),
+	 vjust=0.5, textsize = 2) 
+	if (cluster == 'All'){
+		p <- p + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank(), 
+	strip.text.x = element_text(angle = 0, size=2), legend.position='none', strip.background = element_blank(), 
+	axis.line.x= element_blank()) + 
+	facet_wrap(~Var1, strip.position = "bottom") + 
+	ylab('') 
+	}else{
+		p <- p + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank(), axis.title.x = element_blank(), 
+	strip.text.x = element_text(angle = 90, size=5), legend.position='none', strip.background = element_blank(), 
+	axis.line.x= element_blank(), text = element_text(family = "Helvetica"), axis.text.y = element_text(size = 6, face='bold'), strip.text = element_text(size=7)) + 
+	facet_wrap(~Var1, ncol=length(c(targets, tf)), strip.position = "bottom") + 
+	ylab(cluster_name)
+	}
+	return(p)
+}
+
+pdf('./Plots/Regulon_SIMIC_boxplot.pdf')
+legend <- cowplot::get_legend(plot_boxplot_simic('RFX5', norm_data, 'C3.CD8 Memory') + 
+theme(legend.position='bottom'))
+cowplot::plot_grid(
+	plot_name('RFX5', 0),
+	cowplot::plot_grid(
+		plot_boxplot_simic('RFX5', norm_data, 'C3.CD8 Memory'),
+		plot_boxplot_simic('RFX5', norm_data, 'C8.CD8 Cytotoxic'),
+		plot_boxplot_simic('RFX5', norm_data, 'C9.CD8 Cytotoxic (late)'),
+	ncol=1),
+	legend, 
+	nrow=3, rel_heights = c(0.05, 1, 0.05))
+
+cowplot::plot_grid(
+	plot_name('NR4A1', 0),
+	cowplot::plot_grid(
+		plot_boxplot_simic('NR4A1', norm_data, 'C3.CD8 Memory'),
+		plot_boxplot_simic('NR4A1', norm_data, 'C8.CD8 Cytotoxic'),
+		plot_boxplot_simic('NR4A1', norm_data, 'C9.CD8 Cytotoxic (late)'),
+	ncol=1),
+	legend, 
+	nrow=3, rel_heights = c(0.05, 1, 0.05))
+
+cowplot::plot_grid(
+	plot_name('MAF', 0),
+	cowplot::plot_grid(
+		plot_boxplot_simic('MAF', norm_data, 'C3.CD8 Memory'),
+		plot_boxplot_simic('MAF', norm_data, 'C8.CD8 Cytotoxic'),
+		plot_boxplot_simic('MAF', norm_data, 'C9.CD8 Cytotoxic (late)'),
+	ncol=1),
+	legend, 
+	nrow=3, rel_heights = c(0.05, 1, 0.05))
+dev.off()
+
+
+
+# cowplot::plot_grid(
+# 	plot_boxplot_simic('SATB1', norm_data, 'C3.CD8 Memory'),
+# 	plot_boxplot_simic('SATB1', norm_data, 'C8.CD8 Cytotoxic'),
+# 	plot_boxplot_simic('SATB1', norm_data, 'C9.CD8 Cytotoxic (late)'),
+# ncol=1)
+
+regs2plot <- c('RFX5', 'NR4A1', 'MAF', 'SATB1')
+clusters <- c('C3.CD8 Memory', 'C8.CD8 Cytotoxic', 'C9.CD8 Cytotoxic (late)')
+
+
+get_SimiC_signif_HM <- function(tf, norm_data, simicWs = data,  annotation = coords){
+	targets <- as.character(unique((simicWs[simicWs$driver == tf, 'target'])))
+	tmp <- norm_data[ rownames(norm_data) %in% targets, ]
+	tmp <- reshape2::melt(tmp)
+	tmp$Var2 <- sub( '-', '\\.',tmp$Var2)
+	tmp <- merge(tmp, annotation[, c('cell_id', 'BinScore')], by.x='Var2', by.y='cell_id')
+	mat_2_hm <- data.frame(Low=NULL, High=NULL)
+	ann <- c()
+	for (target in targets){
+		low_val  <- tmp[tmp$Var1==target & tmp$BinScore ==  'Low', 'value']
+		high_val <- tmp[tmp$Var1==target & tmp$BinScore == 'High', 'value']
+		ann <- c(ann, if( wilcox.test(low_val, high_val)$p.value < 0.05) 'Signif' else 'Not_Signif')
+		mat_2_hm <- rbind(mat_2_hm, data.frame(Low=median(low_val), High=median(high_val)))
+	}
+	rownames(mat_2_hm) <- targets
+	ann <- data.frame(Signif = ann)
+	rownames(ann) <- targets
+	colors_ann <- list(
+		'BinScore' = c(High = '#98C7DE', Low = '#D9D9D9'), 
+		'Signif' = c(Signif = 'lightgrey', Not_Signif = 'firebrick4'))
+
+	anno_col <- data.frame(BinScore = c('High', 'Low'))
+	rownames(anno_col) <- c('High', 'Low')
+	p <-  pheatmap::pheatmap(mat_2_hm,
+			treeheight_row=4, treeheight_col=0, scale='none',
+			cluster_col = FALSE, 
+			cluster_row = FALSE,
+			color = viridis::viridis(50),
+		#    gaps_row = gap_indexes,
+			# cutree_rows = 2, 
+			# cutree_cols = 3,
+			fontsize_row = 4,
+			legend=FALSE,
+		#    annotation_row= anno_row,
+			annotation_col=anno_col,
+			annotation_row=ann,
+			annotation_colors=colors_ann,
+			annotation_legend=FALSE,
+			annotation_names_row = FALSE,
+			annotation_names_col = FALSE,
+		#    annotation_row = anno_row,
+			show_colnames = FALSE,
+			show_rownames = FALSE,
+			silent=TRUE,
+			border_color='NA')$gtable
+}
+
+pdf('./Plots/Regulon_SIMIC_HM_supp.pdf')
+cowplot::plot_grid(
+	cowplot::plot_grid(
+		cowplot::plot_grid(plot_name('GATA3', 0), plot_name('RUNX3', 0), plot_name('STAT1', 0), nrow=1),
+		cowplot::plot_grid(get_SimiC_signif_HM('GATA3', norm_data),get_SimiC_signif_HM('RUNX3', norm_data),get_SimiC_signif_HM('STAT1', norm_data), nrow=1),
+	nrow=2, rel_heights = c(0.1,1))
+	,
+	cowplot::plot_grid(
+		cowplot::plot_grid(plot_name('REL', 0), plot_name('RELA', 0), plot_name('JUNB', 0), nrow=1),
+		cowplot::plot_grid(get_SimiC_signif_HM('REL', norm_data),get_SimiC_signif_HM('RELA', norm_data),get_SimiC_signif_HM('JUNB', norm_data), nrow=1),
+	nrow=2, rel_heights = c(0.1,1))
+	,
+	cowplot::plot_grid(
+		cowplot::plot_grid(plot_name('STAT3', 0), plot_name('ARID5A', 0), plot_name('BTG2', 0), nrow=1),
+		cowplot::plot_grid(get_SimiC_signif_HM('STAT3', norm_data),get_SimiC_signif_HM('ARID5A', norm_data),get_SimiC_signif_HM('BTG2', norm_data), nrow=1),
+	nrow=2, rel_heights = c(0.1,1))
+	,
+	cowplot::plot_grid(
+		cowplot::plot_grid(plot_name('RFX5', 0), plot_name('NR4A1', 0), plot_name('MAF', 0), nrow=1),
+		cowplot::plot_grid(get_SimiC_signif_HM('RFX5', norm_data),get_SimiC_signif_HM('NR4A1', norm_data),get_SimiC_signif_HM('MAF', norm_data), nrow=1),
+	nrow=2, rel_heights = c(0.1,1))
+, nrow=4)
+dev.off()
+
+
+
+get_SimiC_signif_HM_subSample <- function(tf, norm_data, simicWs = data,  annotation = coords){
+	targets <- as.character(unique((simicWs[simicWs$driver == tf, 'target'])))
+	tmp <- norm_data[ rownames(norm_data) %in% targets, ]
+	tmp <- reshape2::melt(tmp)
+	tmp$Var2 <- sub( '-', '\\.',tmp$Var2)
+	tmp <- merge(tmp, annotation[, c('cell_id', 'BinScore')], by.x='Var2', by.y='cell_id')
+	mat_2_hm <- matrix(, ncol=2e3, nrow=0)
+	ann <- c()
+	for (target in targets){
+		low_val  <- tmp[tmp$Var1==target & tmp$BinScore ==  'Low', 'value']
+		high_val <- tmp[tmp$Var1==target & tmp$BinScore == 'High', 'value']
+		ann <- c(ann, if( wilcox.test(low_val, high_val)$p.value < 0.05) 'Signif' else 'Not_Signif')
+		mat_2_hm <- rbind(mat_2_hm, c(sample(low_val, 1e3), sample(high_val, 1e3)))
+	}
+
+	rownames(mat_2_hm) <- targets
+	colnames(mat_2_hm) <- c(paste0('Low_', 1:(ncol(mat_2_hm)/2)), paste0('High_', 1:(ncol(mat_2_hm)/2)))
+	ann <- data.frame(Signif = ann)
+	rownames(ann) <- targets
+	colors_ann <- list(
+		'BinScore' = c(High = '#98C7DE', Low = '#D9D9D9'), 
+		'Signif' = c(Signif = 'lightgrey', Not_Signif = 'firebrick4'))
+
+	anno_col <- data.frame(BinScore = stringr::str_extract(colnames(mat_2_hm),'^[A-Z-a-z]+'))
+	rownames(anno_col) <- colnames(mat_2_hm)
+	p <-  pheatmap::pheatmap(mat_2_hm,
+			treeheight_row=4, treeheight_col=0, scale='none',
+			cluster_col = FALSE, 
+			cluster_row = FALSE,
+			color = viridis::viridis(50),
+		#    gaps_row = gap_indexes,
+			# cutree_rows = 2, 
+			# cutree_cols = 3,
+			fontsize_row = 4,
+			legend=FALSE,
+		#    annotation_row= anno_row,
+			annotation_col=anno_col,
+			annotation_row=ann,
+			annotation_colors=colors_ann,
+			annotation_legend=FALSE,
+			annotation_names_row = FALSE,
+			annotation_names_col = FALSE,
+		#    annotation_row = anno_row,
+			show_colnames = FALSE,
+			show_rownames = FALSE,
+			silent=TRUE,
+			border_color='NA')$gtable
+}
+
+
+
+pdf('./Plots/Regulon_SIMIC_HM_supp_subsample.pdf')
+cowplot::plot_grid(
+	cowplot::plot_grid(
+		cowplot::plot_grid(plot_name('GATA3', 0), plot_name('RUNX3', 0), plot_name('STAT1', 0), nrow=1),
+		cowplot::plot_grid(get_SimiC_signif_HM_subSample('GATA3', norm_data),get_SimiC_signif_HM_subSample('RUNX3', norm_data),get_SimiC_signif_HM_subSample('STAT1', norm_data), nrow=1),
+	nrow=2, rel_heights = c(0.1,1))
+	,
+	cowplot::plot_grid(
+		cowplot::plot_grid(plot_name('REL', 0), plot_name('RELA', 0), plot_name('JUNB', 0), nrow=1),
+		cowplot::plot_grid(get_SimiC_signif_HM_subSample('REL', norm_data),get_SimiC_signif_HM_subSample('RELA', norm_data),get_SimiC_signif_HM_subSample('JUNB', norm_data), nrow=1),
+	nrow=2, rel_heights = c(0.1,1))
+	,
+	cowplot::plot_grid(
+		cowplot::plot_grid(plot_name('STAT3', 0), plot_name('ARID5A', 0), plot_name('BTG2', 0), nrow=1),
+		cowplot::plot_grid(get_SimiC_signif_HM_subSample('STAT3', norm_data),get_SimiC_signif_HM_subSample('ARID5A', norm_data),get_SimiC_signif_HM_subSample('BTG2', norm_data), nrow=1),
+	nrow=2, rel_heights = c(0.1,1))
+	,
+	cowplot::plot_grid(
+		cowplot::plot_grid(plot_name('RFX5', 0), plot_name('NR4A1', 0), plot_name('MAF', 0), nrow=1),
+		cowplot::plot_grid(get_SimiC_signif_HM_subSample('RFX5', norm_data),get_SimiC_signif_HM_subSample('NR4A1', norm_data),get_SimiC_signif_HM_subSample('MAF', norm_data), nrow=1),
+	nrow=2, rel_heights = c(0.1,1))
+, nrow=4)
+dev.off()
+
+pdf('./Plots/Regulon_SIMIC_HM_supp_TEST.pdf')
+	targets <- as.character(unique((simicWs[simicWs$driver == 'RUNX3', 'target'])))
+	tmp <- norm_data[ rownames(norm_data) %in% targets, ]
+	colnames(tmp) <- sub( '-', '\\.',colnames(tmp))
+	ann <-  coords[coords$cell_id %in% colnames(tmp), c('cell_id', 'BinScore')]
+	colors_ann <- list(
+		'BinScore' = c(High = '#98C7DE', Low = '#D9D9D9'), 
+		'Signif' = c(Signif = 'lightgrey', Not_Signif = 'firebrick4'))
+
+	anno_col <- ann[,'BinScore', drop=FALSE]
+	rownames(anno_col) <- ann$cell_id
+	 pheatmap::pheatmap(tmp,
+			treeheight_row=4, treeheight_col=0, scale='row',
+			cluster_col = TRUE, 
+			cluster_row = FALSE,
+			color = viridis::viridis(50),
+			annotation_col=anno_col,
+			annotation_colors=colors_ann,
+			annotation_legend=FALSE,
+			annotation_names_row = FALSE,
+			annotation_names_col = FALSE,
+		#    annotation_row = anno_row,
+			show_colnames = FALSE,
+			show_rownames = FALSE,
+			border_color='NA')
+dev.off()
+
+
+
+regs2plot_supp <- c('GATA3', 'RUNX3', 'STAT1', 'REL', 'RELA', 'JUNB', 
+					'STAT3', 'ARID5A', 'BTG2', 'RFX5', 'NR4A1', 'MAF')
+
+
+
+
+df_auc <- readRDS('/home/sevastopol/data/gserranos/CART_HL/SimiC/Data/SimiC_aucs.rds')
+
+
+get_plot_SIMIC <- function(driver_name, data_auc=df_auc , coordinates=coords){
+	tmp <- data_auc[data_auc$driver == driver_name,]
+	tmp$cell_id <- sub('-', '\\.', tmp$cell_id)
+	plotter <- merge(coordinates, tmp[, c('cell_id', 'value')], by = 'cell_id')
+	p <- ggplot(plotter,aes(x = UMAP_1, y = UMAP_2, color=value)) + 
+		geom_point(alpha=0.6) + viridis::scale_color_viridis() +
+		theme_classic() + ggtitle(driver_name) +
+		theme(legend.position = 'none', 
+		axis.text.x = element_blank(),  axis.text.y = element_blank(),
+		axis.ticks.x = element_blank(), axis.ticks.y = element_blank())
+	return(p)
+}
+
+pdf('./Plots/Regulon_UMAP_AUC.pdf')
+cowplot::plot_grid( 
+	get_plot_SIMIC('RFX5'),
+	get_plot_SIMIC('NR4A1'),
+	get_plot_SIMIC('MAF'),
+	get_plot_SIMIC('SATB1'),
+	ncol=2, nrow=2, align = "hv")
+get_plot_SIMIC('RFX5') + facet_wrap(~Cluster, ncol=4, nrow=4)
+get_plot_SIMIC('RFX5') + facet_wrap(~BinScore, ncol=4, nrow=4)
+dev.off()
